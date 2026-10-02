@@ -1,6 +1,8 @@
 import { useEffect } from 'react'
 import { TNTS, tntById } from '../../data/tnts.js'
-import { sellBlocks, buyTnt, buyUpgrade, closePanel, equipTnt, selectSlot, useGameStore } from '../../store/useGameStore.js'
+import { ORES } from '../../data/ores.js'
+import { compact } from '../../utils/compact.js'
+import { damageMult, moneyMult, doRebirth, playerLevel, rebirthLevelFor, sellBlocks, buyTnt, buyUpgrade, closePanel, equipTnt, selectSlot, useGameStore } from '../../store/useGameStore.js'
 import { resetPlayer } from '../../systems/playerState.js'
 import { syncYawToPlayer } from '../../systems/cameraOrbit.js'
 import { setSetting, settings } from '../../systems/settingsState.js'
@@ -73,7 +75,7 @@ const ShopPrice = ({ price }) => (
 
 // The player's inventory: the HUD hotbar shows these in order (slot = index).
 export const INVENTORY = [
-  { name: 'Green TNT', count: 5, Icon: TntIcon, enchanted: true, stock: 'tnt' }, // `stock`: live count key in the game store,
+  { name: 'TNT', count: 5, Icon: TntIcon, enchanted: true, stock: 'tnt' }, // `stock`: live count key in the game store,
   { name: 'Pickaxe', Icon: PickaxeIcon },
   { name: 'Dirt', count: 141, Icon: DirtIcon, stock: 'dirt' },
 ]
@@ -98,7 +100,7 @@ function Bag() {
         >
           <Icon className="panel-tile-icon" {...(stock === 'tnt' && equipped)} />
           <b>{stock === 'tnt' ? `${equipped.name} TNT` : name}</b>
-          <small>{count !== undefined ? `x${count}` : slot === i ? 'Selected' : ''}</small>
+          <small>{count !== undefined ? `x${compact(count)}` : slot === i ? 'Selected' : ''}</small>
         </button>
         )
       })}
@@ -157,7 +159,7 @@ const money = (n) => `$${short(n)}`
 const UPGRADES = [
   { key: 'carryMax', name: 'Carried TNT', Icon: BagIcon, tone: 'tan', price: (v) => 600 * 2 ** (v - 5) },
   { key: 'placeMax', name: 'Placed TNT', Icon: TntIcon, tone: 'red', price: (v) => 3000 * 3 ** (v - 1) },
-  { key: 'range', name: 'Collection Range', Icon: MagnetIcon, tone: 'purple', price: (v) => Math.round((400 * 1.5 ** (v - 12)) / 10) * 10 },
+  { key: 'range', name: 'Collection Range', Icon: MagnetIcon, tone: 'purple', price: (v) => Math.round((400 * 1.5 ** (v - 3)) / 10) * 10 },
   { key: 'speed', name: 'Speed', Icon: BoltIcon, tone: 'blue', price: (v) => Math.round((400 * 1.5 ** (v - 22)) / 10) * 10 },
 ]
 
@@ -192,14 +194,13 @@ function Upgrades() {
 }
 
 // Sellable blocks: `stock` is the store count key, `price` the cash per block.
-const SELLABLE = [
-  { stock: 'dirt', name: 'Dirt', rarity: 'Common', price: 15, Icon: DirtIcon },
-]
+const SELLABLE = ORES.map((o) => ({ stock: o.item, name: o.itemName, rarity: o.name, price: o.price, Icon: DirtIcon }))
 
 function Sell() {
   const state = useGameStore()
+  const mult = moneyMult(state.rebirths)
   const rows = SELLABLE.filter((b) => state[b.stock] > 0)
-  const total = rows.reduce((sum, b) => sum + state[b.stock] * b.price, 0)
+  const total = rows.reduce((sum, b) => sum + Math.round(state[b.stock] * b.price * mult), 0)
   return (
     <div className="panel-list">
       <div className="sell-total">
@@ -223,7 +224,7 @@ function Sell() {
           <div className="sell-side">
             <span>x{state[stock]}</span>
             <button type="button" className="panel-btn" onClick={() => sellBlocks([{ stock, price }])}>
-              +${(state[stock] * price).toLocaleString('en-US')}
+              +${Math.round(state[stock] * price * mult).toLocaleString('en-US')}
             </button>
           </div>
         </div>
@@ -248,16 +249,32 @@ function Daily() {
   )
 }
 
+const fmtMult = (n) => `${+n.toFixed(2)}x`
+
 function Rebirth() {
-  const progress = useGameStore((s) => s.rebirthProgress)
+  const level = useGameStore(playerLevel)
   const rebirths = useGameStore((s) => s.rebirths)
+  const need = rebirthLevelFor(rebirths)
+  const ready = level >= need
+  const rows = [
+    { label: 'Damage', Icon: BurstIcon, from: damageMult(rebirths), to: damageMult(rebirths + 1) },
+    { label: 'Money', Icon: CashIcon, from: moneyMult(rebirths), to: moneyMult(rebirths + 1) },
+  ]
   return (
-    <div className="panel-col">
-      <RebirthIcon className="panel-hero" />
-      <p>Rebirths: <b>{rebirths}</b> → <b>{rebirths + 1}</b></p>
-      <p>Resets your money for a permanent <b>+1.5x Damage</b> boost.</p>
-      <div className="panel-progress"><div style={{ width: `${progress}%` }} /><span>{progress}%</span></div>
-      <button type="button" className="panel-btn panel-btn-wide is-muted">Need $1,000</button>
+    <div className="panel-col rebirth">
+      {rows.map(({ label, Icon, from, to }) => (
+        <div key={label} className="rebirth-row">
+          <div className="rebirth-cell"><Icon className="rebirth-icon" /><span>{fmtMult(from)} {label}</span></div>
+          <i className="rebirth-arrow">▶</i>
+          <div className="rebirth-cell rebirth-next"><Icon className="rebirth-icon" /><span>{fmtMult(to)} {label}</span></div>
+        </div>
+      ))}
+      <p className="rebirth-warn">*Damage gets reset on rebirth*</p>
+      <div className="rebirth-bar"><div style={{ width: `${Math.min(100, (level / need) * 100)}%` }} /><span>Level: {level}/{need}</span></div>
+      <div className="rebirth-actions">
+        <button type="button" className={`panel-btn${ready ? '' : ' is-muted'}`} disabled={!ready} onClick={doRebirth}>Rebirth</button>
+        <button type="button" className="panel-btn rebirth-skip" onClick={closePanel}>Skip</button>
+      </div>
     </div>
   )
 }
@@ -328,7 +345,7 @@ const PANELS = {
   tnts: { title: 'TNTs', Icon: TntIcon, tone: 'pink', body: Tnts },
   sell: { title: 'Sell Blocks', Icon: CashIcon, tone: 'green', body: Sell },
   upgrades: { title: 'Upgrades', Icon: UpgradeIcon, tone: 'lime', body: Upgrades },
-  rebirth: { title: 'Rebirth', Icon: RebirthIcon, tone: 'purple', body: Rebirth },
+  rebirth: { title: 'Rebirth', Icon: RebirthIcon, tone: 'purple', body: Rebirth, cls: 'panel-rebirth' },
   teleport: { title: 'Teleport', Icon: TeleportIcon, tone: 'slate', body: Teleport },
   quests: { title: 'Quests', Icon: ScrollIcon, tone: 'slate', body: Quests },
   settings: { title: 'Settings', Icon: GearIcon, tone: 'slate', body: Settings },

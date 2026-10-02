@@ -1,9 +1,11 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useSyncExternalStore } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
-import { AdditiveBlending, Box3, BoxGeometry, Color, DoubleSide, EdgesGeometry, Object3D, Plane, Raycaster, Vector3 } from 'three'
+import { AdditiveBlending, Box3, BoxGeometry, CanvasTexture, Color, DoubleSide, EdgesGeometry, MeshStandardMaterial, NearestFilter, Object3D, Raycaster, SRGBColorSpace, Vector3 } from 'three'
+import { ORES, oreFor } from '../../data/ores.js'
+import { oreMaterial } from '../../utils/oreTextures.js'
 import { COLORS, FOREST_SIGN, FLOOR_TOP, GATE, GROUND, INFO_BOARDS, MINE_CUBES, NORTH, NORTH_TREES, WALL, WORLD_BOUNDS, rectsAround } from '../../data/world.js'
-import { FUSE_MS, cubeCenter, getVersion, igniteTnt, isRemoved, litTnt, onBlast, placeTnt, placedTnt, previewCube, subscribe, tntKindAt } from '../../systems/mineCubes.js'
-import { playExplosion, playFuse } from '../../systems/sfx.js'
+import { FUSE_MS, aimCube, cubeAt, cubeCenter, getVersion, igniteTnt, isRemoved, litTnt, onBlast, placeTnt, placedTnt, previewCube, subscribe, tntKindAt } from '../../systems/mineCubes.js'
+import { playFuse } from '../../systems/sfx.js'
 import { touchState } from '../../systems/input.js'
 import { player } from '../../systems/playerState.js'
 import { useGameStore } from '../../store/useGameStore.js'
@@ -12,6 +14,8 @@ import { tileMaterial } from '../../materials/tile.js'
 import { billboardTexture, forestSignTexture, infoBoardTexture } from '../../utils/labels.js'
 import { Block, Slab, TntBlock } from './Parts.jsx'
 import { Tree } from './Props.jsx'
+import Blasts from './Blasts.jsx'
+import Pickups from './Pickups.jsx'
 
 // North zone, past the hub's checkered line: a bright-green field with four
 // signboards fanned out in front of a wooden fence. The fence opens through
@@ -141,41 +145,56 @@ function Bush({ x, z }) {
 // The mine floor: one instanced mesh, a cube per grid cell and layer, `layers`
 // deep (systems/mineCubes.js). A dug cube is scaled to nothing, which opens the
 // hole down through the layers below.
+const _cubeGeo = new BoxGeometry(MINE_CUBES.size, MINE_CUBES.size, MINE_CUBES.size)
+
+// One instanced mesh per ore type; each cube cell (col, row, layer) belongs to
+// the mesh of oreFor(col, row, layer).
 function MineCubes() {
-  const ref = useRef()
+  const refs = useRef([])
+  const { cols, rows, layers, size, top } = MINE_CUBES
+  const { materials, slots, counts } = useMemo(() => {
+    const slots = new Map() // cell key -> instance index within its ore's mesh
+    const counts = ORES.map(() => 0)
+    for (let layer = 0; layer < layers; layer++)
+      for (let row = 0; row < rows; row++)
+        for (let col = 0; col < cols; col++) {
+          const o = oreFor(col, row, layer)
+          slots.set((layer * rows + row) * cols + col, counts[o]++)
+        }
+    const materials = ORES.map((o, i) => oreMaterial(o.id, i))
+    return { materials, slots, counts }
+  }, [cols, rows, layers])
   useLayoutEffect(() => {
-    const mesh = ref.current
     const dummy = new Object3D()
-    const { size, cols, rows, layers, top } = MINE_CUBES
     const apply = () => {
       for (let layer = 0; layer < layers; layer++) {
         for (let row = 0; row < rows; row++) {
           for (let col = 0; col < cols; col++) {
+            const key = (layer * rows + row) * cols + col
+            const mesh = refs.current[oreFor(col, row, layer)]
             const c = cubeCenter(col, row)
             dummy.position.set(c.x, top - (layer + 0.5) * size, c.z)
             dummy.scale.setScalar(isRemoved(col, row, layer) ? 0 : 1)
             dummy.updateMatrix()
-            mesh.setMatrixAt((layer * rows + row) * cols + col, dummy.matrix)
+            mesh.setMatrixAt(slots.get(key), dummy.matrix)
           }
         }
       }
-      mesh.instanceMatrix.needsUpdate = true
+      for (const m of refs.current) m.instanceMatrix.needsUpdate = true
     }
     apply()
     return subscribe(apply)
-  }, [])
-  return (
+  }, [cols, rows, layers, size, top, slots])
+  return ORES.map((o, i) => (
     <instancedMesh
-      ref={ref}
-      args={[undefined, undefined, MINE_CUBES.cols * MINE_CUBES.rows * MINE_CUBES.layers]}
-      material={mineFloor}
+      key={o.id}
+      ref={(m) => (refs.current[i] = m)}
+      args={[_cubeGeo, materials[i], counts[i]]}
       castShadow
       receiveShadow
       frustumCulled={false}
-    >
-      <boxGeometry args={[MINE_CUBES.size, MINE_CUBES.size, MINE_CUBES.size]} />
-    </instancedMesh>
-  )
+    />
+  ))
 }
 
 // Holding TNT (hotbar slot 0) inside the mine: a ghost cube, the same size as
@@ -184,8 +203,6 @@ function MineCubes() {
 // the one ahead of the player). Moved imperatively each frame; hidden
 // everywhere else.
 const _ray = new Raycaster()
-const _plane = new Plane(new Vector3(0, 1, 0), 0)
-const _hit = new Vector3()
 const _ghostGeo = new BoxGeometry(MINE_CUBES.size, MINE_CUBES.size, MINE_CUBES.size)
 const _ghostEdges = new EdgesGeometry(_ghostGeo)
 function TntPreview() {
@@ -212,13 +229,14 @@ function TntPreview() {
     let c = null
     if (useGameStore.getState().slot === 0) {
       // Mouse aim: the pointer's ray hits the plane of the cubes' top faces.
-      let aim = null
-      if (!touchState.active) {
+      const inMine = cubeAt(player.position.x, player.position.z)
+      if (inMine && !touchState.active) {
+        // Mouse aim: any column of the mine the pointer's ray hits, near or far, pit or top.
         _ray.setFromCamera(pointer, camera)
-        _plane.constant = -MINE_CUBES.top
-        aim = _ray.ray.intersectPlane(_plane, _hit) ? _hit : null
+        c = aimCube(_ray.ray)
+      } else {
+        c = previewCube(player.position.x, player.position.z, player.facing, null, shown.current.col, shown.current.row)
       }
-      c = previewCube(player.position.x, player.position.z, player.facing, aim, shown.current.col, shown.current.row)
     }
     if (!c) {
       if (g.visible) g.visible = false
@@ -345,196 +363,6 @@ function TntIgniter() {
   return null
 }
 
-// Blast effects: per blast a fireball, a ground shockwave ring and a point
-// light flash (one shared light, so the light count never changes and nothing
-// recompiles), plus a pooled instanced-cube particle burst of fire, smoke and
-// flying debris.
-const PARTICLES = 320
-const SLOTS = 4
-const _col = new Color()
-const _dummy = new Object3D()
-const FIRE = [new Color('#fff1a8'), new Color('#ff9a1e'), new Color('#d83a12'), new Color('#2a1a14')]
-const DEBRIS = [new Color('#6d3f1f'), new Color('#2bc04a'), new Color('#ea8b3c'), new Color('#1c7a2f')]
-function Blasts() {
-  const parts = useRef()
-  const light = useRef()
-  const balls = useRef([])
-  const rings = useRef([])
-  const state = useMemo(
-    () => ({
-      p: Array.from({ length: PARTICLES }, () => ({ life: 0, max: 1, kind: 0, size: 1, x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, c: 0 })),
-      next: 0,
-      blasts: Array.from({ length: SLOTS }, () => ({ t0: -1, x: 0, y: 0, z: 0 })),
-      slot: 0,
-    }),
-    [],
-  )
-
-  useLayoutEffect(() => {
-    const mesh = parts.current
-    _dummy.scale.setScalar(0)
-    _dummy.updateMatrix()
-    for (let i = 0; i < PARTICLES; i++) {
-      mesh.setMatrixAt(i, _dummy.matrix)
-      mesh.setColorAt(i, _col.set('#ffffff'))
-    }
-    mesh.instanceMatrix.needsUpdate = true
-    mesh.instanceColor.needsUpdate = true
-  }, [])
-
-  useEffect(
-    () =>
-      onBlast(({ x, y, z }) => {
-        playExplosion()
-        const b = state.blasts[state.slot]
-        state.slot = (state.slot + 1) % SLOTS
-        b.t0 = performance.now()
-        b.x = x
-        b.y = y
-        b.z = z
-        const spawn = (kind, n, speed, up, life, size) => {
-          for (let k = 0; k < n; k++) {
-            const p = state.p[state.next]
-            state.next = (state.next + 1) % PARTICLES
-            const a = Math.random() * Math.PI * 2
-            const s = speed * (0.4 + Math.random() * 0.8)
-            p.kind = kind
-            p.x = x + (Math.random() - 0.5) * 1.4
-            p.y = y + (Math.random() - 0.5) * 1.2
-            p.z = z + (Math.random() - 0.5) * 1.4
-            p.vx = Math.cos(a) * s
-            p.vz = Math.sin(a) * s
-            p.vy = up * (0.4 + Math.random() * 0.9)
-            p.max = life * (0.7 + Math.random() * 0.6)
-            p.life = p.max
-            p.size = size * (0.6 + Math.random() * 0.8)
-            p.c = Math.floor(Math.random() * DEBRIS.length)
-          }
-        }
-        spawn(0, 90, 5, 6, 0.7, 0.9) // fire
-        spawn(1, 60, 2.5, 3.5, 1.6, 1.2) // smoke
-        spawn(2, 60, 7, 11, 1.4, 0.35) // debris
-      }),
-    [state],
-  )
-
-  useFrame((_, dt) => {
-    dt = Math.min(dt, 0.05)
-    const now = performance.now()
-    const mesh = parts.current
-
-    let flash = 0
-    let fx = 0
-    let fy = 0
-    let fz = 0
-    for (let i = 0; i < SLOTS; i++) {
-      const b = state.blasts[i]
-      const ball = balls.current[i]
-      const ring = rings.current[i]
-      const t = b.t0 < 0 ? 99 : (now - b.t0) / 1000
-      const ballT = t / 0.55
-      const ringT = t / 0.7
-      ball.visible = ballT < 1
-      ring.visible = ringT < 1
-      if (ball.visible) {
-        ball.position.set(b.x, b.y, b.z)
-        ball.scale.setScalar(1.2 + (1 - (1 - ballT) * (1 - ballT)) * 4.2)
-        ball.material.opacity = (1 - ballT) * 0.9
-      }
-      if (ring.visible) {
-        ring.position.set(b.x, b.y - MINE_CUBES.size / 2 + 0.08, b.z)
-        ring.scale.setScalar(1 + (1 - (1 - ringT) * (1 - ringT)) * 7)
-        ring.material.opacity = (1 - ringT) * 0.7
-      }
-      const f = Math.max(0, 1 - t / 0.5)
-      if (f > flash) {
-        flash = f
-        fx = b.x
-        fy = b.y
-        fz = b.z
-      }
-    }
-    light.current.intensity = flash * flash * 260
-    light.current.position.set(fx, fy + 1.5, fz)
-
-    let live = false
-    for (let i = 0; i < PARTICLES; i++) {
-      const p = state.p[i]
-      if (p.life <= 0) continue
-      live = true
-      p.life -= dt
-      if (p.life <= 0) {
-        _dummy.scale.setScalar(0)
-        _dummy.position.set(0, 0, 0)
-        _dummy.updateMatrix()
-        mesh.setMatrixAt(i, _dummy.matrix)
-        continue
-      }
-      const u = 1 - p.life / p.max // 0 fresh -> 1 gone
-      if (p.kind === 2) p.vy -= 24 * dt
-      else if (p.kind === 0) p.vy += 2 * dt
-      else p.vy += 1 * dt
-      const drag = p.kind === 2 ? 1 : Math.max(0, 1 - 2.5 * dt)
-      p.vx *= drag
-      p.vz *= drag
-      p.x += p.vx * dt
-      p.y += p.vy * dt
-      p.z += p.vz * dt
-      if (p.kind === 2 && p.y < MINE_CUBES.top + 0.1) {
-        p.y = MINE_CUBES.top + 0.1
-        p.vy *= -0.3
-        p.vx *= 0.6
-        p.vz *= 0.6
-      }
-      let s = p.size
-      if (p.kind === 0) {
-        s *= 1 - u * 0.8
-        const f = u * (FIRE.length - 1)
-        const a = Math.min(FIRE.length - 2, Math.floor(f))
-        _col.copy(FIRE[a]).lerp(FIRE[a + 1], f - a)
-      } else if (p.kind === 1) {
-        s *= 0.6 + u * 1.6
-        _col.set('#4a4642').multiplyScalar(1 - u * 0.5)
-      } else {
-        s *= 1 - u * 0.4
-        _col.copy(DEBRIS[p.c])
-      }
-      _dummy.position.set(p.x, p.y, p.z)
-      _dummy.rotation.set(u * 9 * (p.c + 1), u * 7, 0)
-      _dummy.scale.setScalar(s)
-      _dummy.updateMatrix()
-      mesh.setMatrixAt(i, _dummy.matrix)
-      mesh.setColorAt(i, _col)
-    }
-    if (live || mesh.userData.dirty) {
-      mesh.instanceMatrix.needsUpdate = true
-      mesh.instanceColor.needsUpdate = true
-      mesh.userData.dirty = live
-    }
-  })
-
-  return (
-    <group>
-      <pointLight ref={light} color="#ffa040" intensity={0} distance={22} decay={2} />
-      <instancedMesh ref={parts} args={[undefined, undefined, PARTICLES]} frustumCulled={false}>
-        <boxGeometry args={[1, 1, 1]} />
-        <meshBasicMaterial toneMapped={false} />
-      </instancedMesh>
-      {Array.from({ length: SLOTS }, (_, i) => (
-        <group key={i}>
-          <mesh ref={(m) => (balls.current[i] = m)} visible={false}>
-            <sphereGeometry args={[1, 16, 12]} />
-            <meshBasicMaterial color="#ffb030" transparent depthWrite={false} blending={AdditiveBlending} toneMapped={false} />
-          </mesh>
-          <mesh ref={(m) => (rings.current[i] = m)} rotation={[-Math.PI / 2, 0, 0]} visible={false}>
-            <ringGeometry args={[0.8, 1, 32]} />
-            <meshBasicMaterial color="#ffe9b0" transparent depthWrite={false} blending={AdditiveBlending} toneMapped={false} side={DoubleSide} />
-          </mesh>
-        </group>
-      ))}
-    </group>
-  )
-}
 
 export default function MineGate() {
   const half = GROUND.size / 2
@@ -556,6 +384,7 @@ export default function MineGate() {
       <PlacedTnt />
       <TntIgniter />
       <Blasts />
+      <Pickups />
       <MineFence />
       <MineArch />
       <ForestSign />

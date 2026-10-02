@@ -207,6 +207,33 @@
 .tnt-blast-icon { width: 30px; height: 30px; }
 .hud .tnt-equip { background: linear-gradient(#4ab4ff, #1f6ad8); border-color: #0a2a5a; box-shadow: 0 4px 0 #0a2a5a; -webkit-text-stroke-color: #0a2a5a; }
 .hud .tnt-equipped { background: linear-gradient(#ffc21f, #e08a0a); border-color: #5a3a08; box-shadow: 0 4px 0 #5a3a08; -webkit-text-stroke-color: #5a3a08; cursor: default; }
+/* Rebirth panel: dark window, grey -> purple stat rows, green level bar */
+.panel-rebirth { width: min(92vw, 520px); background: #1b1d26; border-radius: 8px; }
+.panel-rebirth .panel-body { background: #1b1d26; padding: 14px; }
+.rebirth { gap: 10px; }
+.rebirth-row { display: flex; align-items: center; gap: 10px; }
+.rebirth-cell {
+  flex: 1; display: flex; align-items: center; gap: 6px; height: 52px; padding: 0 8px; border-radius: 6px;
+  border: 3px solid #0e0f14; background: linear-gradient(#6b6e76, #4a4d55); color: #fff;
+}
+.rebirth-next { background: linear-gradient(#b13bff, #8a1fe0); }
+.rebirth-cell span { font-family: 'Fredoka', sans-serif; font-weight: 700; font-size: 22px; -webkit-text-stroke: 5px #141414; paint-order: stroke fill; white-space: nowrap; }
+.rebirth-icon { width: 36px; height: 36px; flex: none; }
+.rebirth-arrow { font-style: normal; color: #cfe8ff; font-size: 22px; }
+.panel-body .rebirth-warn {
+  margin: 4px 0; font-family: 'Fredoka', sans-serif; font-weight: 700; font-size: 24px; color: #ff7a6a;
+  -webkit-text-stroke: 5px #3a1410; paint-order: stroke fill;
+}
+.rebirth-bar { position: relative; height: 46px; border-radius: 6px; background: #4a4d55; border: 3px solid #0e0f14; overflow: hidden; }
+.rebirth-bar > div { height: 100%; background: linear-gradient(#3fc84a, #1f8a2b); }
+.rebirth-bar > span {
+  position: absolute; inset: 0; display: grid; place-items: center; color: #fff;
+  font-family: 'Fredoka', sans-serif; font-weight: 700; font-size: 28px; -webkit-text-stroke: 6px #141414; paint-order: stroke fill;
+}
+.rebirth-actions { display: flex; gap: 14px; }
+.hud .rebirth-actions .panel-btn { flex: 1; height: 56px; font-size: 28px; border-radius: 6px; }
+.hud .rebirth-skip { background: linear-gradient(#b13bff, #8a1fe0); border-color: #3a0f66; box-shadow: 0 4px 0 #3a0f66; -webkit-text-stroke-color: #3a0f66; }
+.hud .panel-rebirth .panel-close { border-radius: 4px; }
 .panel-head {
   display: flex; align-items: center; gap: 12px; padding: 10px 14px;
   background: linear-gradient(var(--tone2), var(--tone)); border-bottom: 4px solid #1c1208;
@@ -347,3 +374,31 @@
 .sell-row b, .sell-side span { font-family: 'Fredoka', sans-serif; font-size: 26px; -webkit-text-stroke: 5px #141414; paint-order: stroke fill; }
 .sell-icon { width: 64px; height: 64px; flex: none; }
 .sell-side { display: flex; flex-direction: column; align-items: center; gap: 4px; }
+
+/* Ore collected: cards around the player (components/hud/CollectPopups.jsx) */
+.hud-collect-layer { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 55; }
+.hud-collect { position: absolute; width: 0; height: 0; }
+.hud-collect-inner {
+  position: absolute; left: calc(var(--s) * -80); top: calc(var(--s) * -80); width: calc(var(--s) * 160); height: calc(var(--s) * 160);
+  display: grid; place-items: center; transform: rotate(var(--tilt));
+}
+.hud-collect-cube { position: absolute; left: 14%; top: 22%; width: 66%; height: 66%; filter: drop-shadow(0 calc(var(--s) * 4) 0 rgba(0, 0, 0, 0.35)); }
+.hud-collect-item, .hud-collect-name, .hud-collect-amount {
+  position: absolute; color: #fff; paint-order: stroke fill; white-space: nowrap; line-height: 1;
+  -webkit-text-stroke: calc(var(--s) * 8) var(--stroke); text-shadow: 0 calc(var(--s) * 4) 0 rgba(0, 0, 0, 0.35);
+}
+.hud-collect-item { top: calc(var(--s) * -2); font-size: calc(var(--s) * 22); color: #e6e6e6; -webkit-text-stroke-width: calc(var(--s) * 5); }
+.hud-collect-name { top: calc(var(--s) * 14); font-size: calc(var(--s) * 50); }
+.hud-collect-amount { right: calc(var(--s) * -14); bottom: calc(var(--s) * -4); font-size: calc(var(--s) * 62); }
+.hud-collect-inner { animation: hud-collect-in 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+.hud-collect-inner.is-leaving { animation: hud-collect-out 0.45s ease-in forwards; }
+.hud-collect-amount { animation: hud-collect-bump 0.25s ease-out; }
+@keyframes hud-collect-in {
+  from { opacity: 0; transform: translateY(calc(var(--s) * 20)) scale(0.3) rotate(var(--tilt)); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes hud-collect-out {
+  from { opacity: 1; transform: rotate(var(--tilt)); }
+  to { opacity: 0; transform: translateY(calc(var(--s) * -46)) scale(0.85) rotate(var(--tilt)); }
+}
+@keyframes hud-collect-bump { 0% { scale: 1.35; } 100% { scale: 1; } }

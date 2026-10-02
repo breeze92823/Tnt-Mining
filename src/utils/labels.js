@@ -1,6 +1,7 @@
 import { CanvasTexture, NearestFilter, SRGBColorSpace } from 'three'
 import { seededRandom } from './random.js'
 import { TNTS } from '../data/tnts.js'
+import { compact } from './compact.js'
 
 // Canvas-painted textures for the hub: Roblox-style billboard text, signs,
 // TNT and ore block faces, and the leaderboard panels. Built once per key.
@@ -402,36 +403,59 @@ export function tntFaces(kind) {
 
 // --- boards ---------------------------------------------------------------------
 
-const LB_NAMES = ['BlastKing', 'BoomRider99', 'TNTerror', 'Kaboomz', 'DigDug42', 'CraterPro', 'MinerMax', 'Dynamyte', 'RockSmash', 'PixelPicks']
-const LB_VALUES = {
-  damage: ['1.55Sx', '817.7Qi', '400.8Qi', '163.0Qi', '96.2Qi', '44.1Qi', '12.9Qi', '5.3Qi', '880Qd', '412Qd'],
-  rebirths: ['55', '30', '28', '25', '24', '21', '19', '17', '16', '14'],
-  money: ['$297.8K', '$212.4K', '$171.0K', '$98.6K', '$77.2K', '$64.9K', '$51.3K', '$40.0K', '$31.8K', '$25.5K'],
+// Rows pushed by the backend (systems/net.js `leaderboard`), per board id: [{ id, name, value }].
+// Until the first push (offline, or the server still booting) the boards show empty rows.
+const LB_ROWS = 10
+const LB_FORMAT = {
+  damage: (n) => compact(Math.floor(n)),
+  rebirths: (n) => String(Math.floor(n)),
+  money: (n) => `$${compact(Math.floor(n))}`,
+}
+const lbData = {}
+
+function drawBoard(ctx, w, h, board) {
+  const { rows = [], selfId = '' } = lbData[board.id] || {}
+  const format = LB_FORMAT[board.id] || String
+  ctx.clearRect(0, 0, w, h)
+  ctx.fillStyle = '#e88c2f'
+  ctx.fillRect(0, 0, w, h)
+  ctx.fillStyle = '#1d2238'
+  ctx.fillRect(14, 14, w - 28, h - 28)
+  // header
+  ctx.fillStyle = '#2c3456'
+  ctx.fillRect(14, 14, w - 28, 92)
+  drawIcon(ctx, board.icon, 70, 60, 56)
+  strokeText(ctx, board.title, 106, 62, 46, '#fff', { align: 'left' })
+  const rankColor = ['#ffd33a', '#d9e2ec', '#e09155']
+  for (let i = 0; i < LB_ROWS; i++) {
+    const y = 118 + i * 50
+    const row = rows[i]
+    // our own row is tinted gold
+    ctx.fillStyle = row && row.id === selfId ? '#5a4a1c' : i % 2 ? '#232a46' : '#2a3254'
+    ctx.fillRect(26, y, w - 52, 46)
+    strokeText(ctx, `#${i + 1}`, 38, y + 24, 28, rankColor[i] ?? '#fff', { align: 'left' })
+    if (!row) {
+      strokeText(ctx, '-', 102, y + 24, 26, '#6d7595', { align: 'left', stroke: null, weight: 600 })
+      continue
+    }
+    const name = row.name.length > 13 ? `${row.name.slice(0, 12)}…` : row.name
+    strokeText(ctx, name, 102, y + 24, 26, '#fff', { align: 'left', stroke: null, weight: 600 })
+    strokeText(ctx, format(row.value), w - 38, y + 24, 26, board.id === 'money' ? '#53e05f' : '#ffb347', { align: 'right' })
+  }
 }
 
 export function leaderboardTexture(board) {
-  return make(`lb:${board.id}`, 512, 640, (ctx, w, h) => {
-    ctx.fillStyle = '#e88c2f'
-    ctx.fillRect(0, 0, w, h)
-    ctx.fillStyle = '#1d2238'
-    ctx.fillRect(14, 14, w - 28, h - 28)
-    // header
-    ctx.fillStyle = '#2c3456'
-    ctx.fillRect(14, 14, w - 28, 92)
-    drawIcon(ctx, board.icon, 70, 60, 56)
-    strokeText(ctx, board.title, 106, 62, 46, '#fff', { align: 'left' })
-    const names = [...LB_NAMES.slice(board.id.length % 4), ...LB_NAMES.slice(0, board.id.length % 4)]
-    const vals = LB_VALUES[board.id]
-    const rankColor = ['#ffd33a', '#d9e2ec', '#e09155']
-    for (let i = 0; i < 10; i++) {
-      const y = 118 + i * 50
-      ctx.fillStyle = i % 2 ? '#232a46' : '#2a3254'
-      ctx.fillRect(26, y, w - 52, 46)
-      strokeText(ctx, `#${i + 1}`, 38, y + 24, 28, rankColor[i] ?? '#fff', { align: 'left' })
-      strokeText(ctx, names[i], 102, y + 24, 26, '#fff', { align: 'left', stroke: null, weight: 600 })
-      strokeText(ctx, vals[i], w - 38, y + 24, 26, board.id === 'money' ? '#53e05f' : '#ffb347', { align: 'right' })
-    }
-  })
+  return make(`lb:${board.id}`, 512, 640, (ctx, w, h) => drawBoard(ctx, w, h, board))
+}
+
+// Stores a board's latest rows and repaints its texture if it has been built already.
+export function setLeaderboardRows(board, rows, selfId) {
+  lbData[board.id] = { rows: Array.isArray(rows) ? rows.slice(0, LB_ROWS) : [], selfId }
+  const texture = cache.get(`lb:${board.id}`)
+  if (!texture) return
+  const canvas = texture.image
+  drawBoard(canvas.getContext('2d'), canvas.width, canvas.height, board)
+  texture.needsUpdate = true
 }
 
 // Signboards in front of the Forest Mine fence (see INFO_BOARDS in world.js).

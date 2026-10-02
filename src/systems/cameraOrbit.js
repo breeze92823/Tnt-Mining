@@ -1,6 +1,7 @@
 import { inputState } from './input.js'
 import { player } from './playerState.js'
 import { safeDistance } from './cameraCollision.js'
+import { shakeOffset, step as stepShake } from './cameraShake.js'
 
 // Third-person follow with right-drag orbit + wheel zoom. Position and
 // look-at ease at different rates so the rig reads as a follow cam rather
@@ -16,6 +17,8 @@ const MIN_PITCH = -0.1
 const MAX_PITCH = 1.2
 const MIN_DIST = 3
 const MAX_DIST = 60
+const LIFT_STEP = 0.1 // radians tried per step when the boom is blocked
+const MAX_LIFT_PITCH = 1.5
 const ORBIT_SENS = 0.005
 const ZOOM_SENS = 0.01
 const POSITION_SMOOTHING = 12
@@ -50,7 +53,14 @@ export function setView({ yaw = state.yaw, pitch = state.pitch, distance = state
   state.distance = distance
 }
 
+// Shake offset added on top of the follow pose last frame; taken off again
+// before smoothing so the shake never feeds back into the follow.
+const applied = { x: 0, y: 0, z: 0 }
+
 export function update(camera, dt) {
+  camera.position.x -= applied.x
+  camera.position.y -= applied.y
+  camera.position.z -= applied.z
   state.yaw -= inputState.look.dx * ORBIT_SENS * sensitivity
   state.pitch += inputState.look.dy * ORBIT_SENS * sensitivity
   inputState.look.dx = 0
@@ -79,13 +89,37 @@ export function update(camera, dt) {
   target.y = player.position.y + player.dims.height * 0.6
   target.z = player.position.z
 
-  const cp = Math.cos(state.pitch)
-  const dirX = Math.sin(state.yaw) * cp
-  const dirY = Math.sin(state.pitch)
-  const dirZ = Math.cos(state.yaw) * cp
-
-  // Shorten the boom if it would end up in the ground.
-  const boom = safeDistance(target, dirX, dirY, dirZ, state.distance)
+  // If the boom would end up in the ground (e.g. the walls of a dug pit),
+  // tilt it upward until it clears at full length rather than collapsing onto
+  // the player; shorten it only when even the steepest tilt is blocked.
+  let pitch = state.pitch
+  let cp = Math.cos(pitch)
+  let dirX = Math.sin(state.yaw) * cp
+  let dirY = Math.sin(pitch)
+  let dirZ = Math.cos(state.yaw) * cp
+  let boom = safeDistance(target, dirX, dirY, dirZ, state.distance)
+  if (boom < state.distance) {
+    let bestBoom = boom
+    let bestPitch = pitch
+    for (let p = pitch + LIFT_STEP; p <= MAX_LIFT_PITCH + 1e-6; p += LIFT_STEP) {
+      const c = Math.cos(p)
+      const x = Math.sin(state.yaw) * c
+      const y = Math.sin(p)
+      const z = Math.cos(state.yaw) * c
+      const b = safeDistance(target, x, y, z, state.distance)
+      if (b > bestBoom) {
+        bestBoom = b
+        bestPitch = p
+        if (b >= state.distance) break
+      }
+    }
+    pitch = bestPitch
+    boom = bestBoom
+    cp = Math.cos(pitch)
+    dirX = Math.sin(state.yaw) * cp
+    dirY = Math.sin(pitch)
+    dirZ = Math.cos(state.yaw) * cp
+  }
   const desiredX = target.x + dirX * boom
   const desiredY = target.y + dirY * boom
   const desiredZ = target.z + dirZ * boom
@@ -109,4 +143,15 @@ export function update(camera, dt) {
   }
 
   camera.lookAt(lookAt.x, lookAt.y, lookAt.z)
+
+  stepShake(dt)
+  applied.x = shakeOffset.x
+  applied.y = shakeOffset.y
+  applied.z = shakeOffset.z
+  camera.position.x += applied.x
+  camera.position.y += applied.y
+  camera.position.z += applied.z
+  camera.rotateX(shakeOffset.pitch)
+  camera.rotateY(shakeOffset.yaw)
+  camera.rotateZ(shakeOffset.roll)
 }

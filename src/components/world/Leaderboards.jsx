@@ -1,7 +1,8 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import { LB_BOARD_X, LB_BOARDS, LB_STAGE, WALL } from '../../data/world.js'
 import { MAT } from '../../materials/hub.js'
-import { bannerTexture, leaderboardTexture } from '../../utils/labels.js'
+import { bannerTexture, leaderboardTexture, setLeaderboardRows } from '../../utils/labels.js'
+import { subscribeLeaderboard } from '../../systems/net.js'
 import { Block, Slab } from './Parts.jsx'
 
 // East zone: a two-step grey stage with a red carpet up the middle, three

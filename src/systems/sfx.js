@@ -131,40 +131,45 @@ function renderButtonClick(ctx) {
   return offline.startRendering()
 }
 
-// Low-passed noise burst with a falling thump underneath: the TNT blast.
-function renderExplosion(ctx) {
-  const totalS = 1.6
-  const rate = ctx.sampleRate
-  const offline = new OfflineAudioContext(1, Math.ceil(totalS * rate), rate)
-  const n = Math.ceil(totalS * rate)
-  const nb = offline.createBuffer(1, n, rate)
-  const d = nb.getChannelData(0)
-  for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1
-  const noise = offline.createBufferSource()
-  noise.buffer = nb
-  const lp = offline.createBiquadFilter()
-  lp.type = 'lowpass'
-  lp.frequency.setValueAtTime(3500, 0)
-  lp.frequency.exponentialRampToValueAtTime(120, totalS)
-  const ng = offline.createGain()
-  ng.gain.setValueAtTime(1, 0)
-  ng.gain.exponentialRampToValueAtTime(0.001, totalS)
-  noise.connect(lp)
-  lp.connect(ng)
-  ng.connect(offline.destination)
-  noise.start(0)
-  const osc = offline.createOscillator()
-  osc.type = 'sine'
-  osc.frequency.setValueAtTime(110, 0)
-  osc.frequency.exponentialRampToValueAtTime(30, 0.5)
-  const og = offline.createGain()
-  og.gain.setValueAtTime(1, 0)
-  og.gain.exponentialRampToValueAtTime(0.001, 0.7)
-  osc.connect(og)
-  og.connect(offline.destination)
-  osc.start(0)
-  osc.stop(0.75)
-  return offline.startRendering()
+// The TNT blast: public/audio/tnt_explosion.mp3, decoded once, then cleaned up
+// so it sits with the quiet UI sounds — leading silence trimmed, peak-normalised
+// (the mp3's own loudness is arbitrary) and a short fade-out on the tail.
+const EXPLOSION_URL = `${import.meta.env.BASE_URL}audio/tnt_explosion.mp3`
+const EXPLOSION_PEAK = 0.9
+const EXPLOSION_FADE_S = 0.15
+
+async function renderExplosion(ctx) {
+  const res = await fetch(EXPLOSION_URL)
+  const decoded = await ctx.decodeAudioData(await res.arrayBuffer())
+  const rate = decoded.sampleRate
+  const ch = decoded.numberOfChannels
+  let peak = 0
+  for (let c = 0; c < ch; c++) {
+    const d = decoded.getChannelData(c)
+    for (let i = 0; i < d.length; i++) peak = Math.max(peak, Math.abs(d[i]))
+  }
+  if (peak === 0) return decoded
+  let start = decoded.length
+  for (let c = 0; c < ch; c++) {
+    const d = decoded.getChannelData(c)
+    for (let i = 0; i < start; i++) {
+      if (Math.abs(d[i]) > peak * 0.02) { start = i; break }
+    }
+  }
+  start = Math.max(0, start - Math.floor(rate * 0.005))
+  const len = decoded.length - start
+  const out = ctx.createBuffer(ch, len, rate)
+  const fade = Math.min(len, Math.floor(EXPLOSION_FADE_S * rate))
+  const k = EXPLOSION_PEAK / peak
+  for (let c = 0; c < ch; c++) {
+    const src = decoded.getChannelData(c)
+    const dst = out.getChannelData(c)
+    for (let i = 0; i < len; i++) {
+      const tail = len - i
+      dst[i] = src[start + i] * k * (tail < fade ? tail / fade : 1)
+    }
+  }
+  return out
 }
 
 // Short highpassed hiss: a fuse catching.
@@ -201,9 +206,15 @@ export function preload() {
   cached('fail', ctx, renderActionFail)
   cached('boom', ctx, renderExplosion)
   cached('fuse', ctx, renderFuse)
+  cached('pickup', ctx, renderPickup)
+  cached('powerGain', ctx, renderPowerGain)
 }
 
-export const playExplosion = () => play('boom', renderExplosion, 0.9)
+// Short rising blip for an ore pickup landing in the inventory.
+const renderPickup = (ctx) => renderNotes(ctx, { notes: [880, 1320], gap: 0.045, attack: 0.004, decay: 0.07, type: 'sine', peak: 0.6 })
+export const playPickup = () => play('pickup', renderPickup, 0.35)
+
+export const playExplosion = () => play('boom', renderExplosion, 0.55)
 export const playFuse = () => play('fuse', renderFuse, 0.5)
 
 // "The hold actually did something" — played by interact.js on every confirmed hold.
@@ -212,3 +223,11 @@ export const playConfirmPop = () => play('confirm', renderConfirmPop, CONFIRM_PO
 export const playButtonClick = () => play('click', renderButtonClick, BUTTON_CLICK_GAIN)
 // A blocked action — played by showActionResult(text, false).
 export const playActionFail = () => play('fail', renderActionFail, ACTION_FAIL_GAIN)
+
+// Blast-power gain "pop" (Laser-Escape's power_gain.mp3) — played with the +N badge.
+const POWER_GAIN_URL = `${import.meta.env.BASE_URL}audio/power_gain.mp3`
+const renderPowerGain = async (ctx) => {
+  const res = await fetch(POWER_GAIN_URL)
+  return ctx.decodeAudioData(await res.arrayBuffer())
+}
+export const playPowerGainPop = () => play('powerGain', renderPowerGain, 0.135)

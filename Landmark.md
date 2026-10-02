@@ -150,7 +150,7 @@ Code: [Training.jsx](src/components/world/Training.jsx), data: `TARGETS`, `TARGE
 | **Training Stage** | x -37 to -30, z -19 to 19 | Low blue-grey stage (top 1.0, a single step up from the path) with a gold strip (z ±4) in line with the path; holds the back row |
 | **Seating** | against the west wall | Two-step bleachers, level with the stage at the back |
 
-Targets are 2.4 m blocks on 3.4 m coloured floor tiles. The front row is at x -26 on the floor; the back row is at x -33.5 on the stage. Labels show the cost (or "Unlocked") and the damage multiplier; back-row labels sit higher so they clear the front row's. Each is solid within 1.6 m.
+Targets are 2.4 m blocks on 3.4 m coloured floor tiles. The front row is at x -26 on the floor; the back row is at x -33.5 on the stage. Labels show the cost (or "Unlocked") and the damage multiplier; back-row labels sit higher so they clear the front row's. Each is solid as a 2.4 m square box matching the block.
 
 | Name | Position (x, z) | Row | Tile | Damage | Cost |
 |---|---|---|---|---|---|
@@ -203,11 +203,9 @@ Code: [Hud.jsx](src/components/Hud.jsx), panels in [Panels.jsx](src/components/h
 | Name | Where on screen |
 |---|---|
 | **Level Bar** | top centre |
-| **Friend Boost** (and the **+** button) | top right |
-| **Quest Button** and **Settings Button** | under Friend Boost |
 | **Menu Cards** (Shop, Bag, Daily, Rebirth) and **Teleport Button** | left |
-| **Stats** (explosions, money, shells, rebirths) | bottom left |
-| **Offers** (90% OFF potion, FREE gift) | right |
+| **Stats** (explosions, money, rebirths) | bottom left |
+| **Offers** (FREE gift) | right |
 | **Hotbar** (the player's inventory) and **Enchanted Label** | bottom centre |
 | **E Prompt** (keycap + hold ring) | centre, 70% down; shown only near an interact zone (see [Interact.md](Interact.md)) |
 | **Action Result** (green/red popup) | top centre, under the Level Bar |

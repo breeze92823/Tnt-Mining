@@ -1,10 +1,12 @@
-import { useMemo, useRef } from 'react'
+import { useMemo, useRef, useSyncExternalStore } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { AdditiveBlending, CanvasTexture, MeshStandardMaterial, SRGBColorSpace } from 'three'
 import { GRASS_HALF, TARGET_BLOCK, TARGET_TILE, TARGETS, TRAINING_STAGE, WALL } from '../../data/world.js'
+import { getVersion, subscribe, trainingTnt, TRAIN_FUSE_MS } from '../../systems/trainingTnt.js'
+import { useGameStore } from '../../store/useGameStore.js'
 import { MAT, solid } from '../../materials/hub.js'
 import { bannerTexture, oreTexture } from '../../utils/labels.js'
-import { Billboard, Block, Slab } from './Parts.jsx'
+import { Billboard, Block, Slab, TntBlock } from './Parts.jsx'
 
 // West zone: a front row of target blocks at floor level either side of the
 // path, a low stage across the back (gold strip in line with the path) with
@@ -76,16 +78,44 @@ function Crystal({ y }) {
   )
 }
 
+// TNT put on a target by auto-training: swells and flashes white until it blasts.
+function TrainingTnt({ t }) {
+  const group = useRef()
+  const flash = useRef()
+  useFrame(() => {
+    const u = Math.min(1, Math.max(0, 1 - (t.at - performance.now()) / TRAIN_FUSE_MS))
+    const wave = Math.sin(u * u * 40) * 0.5 + 0.5
+    if (flash.current) flash.current.opacity = wave * (0.35 + 0.5 * u)
+    if (group.current) group.current.scale.setScalar(1 + wave * 0.05 + u * 0.08)
+  })
+  return (
+    <group ref={group} position={[t.x, t.y + 0.5, t.z]}>
+      <TntBlock kind={t.kind} size={1} />
+      <mesh>
+        <boxGeometry args={[1.03, 1.03, 1.03]} />
+        <meshBasicMaterial ref={flash} color="#ffffff" transparent opacity={0} depthWrite={false} toneMapped={false} />
+      </mesh>
+    </group>
+  )
+}
+
+function TrainingTnts() {
+  useSyncExternalStore(subscribe, getVersion)
+  return [...trainingTnt().values()].map((t) => <TrainingTnt key={t.id} t={t} />)
+}
+
 // Back-row labels sit higher so they clear the front row's from the path.
 const LABEL_LIFT = { front: 1.5, back: 3.1 }
 
 function Target({ t }) {
   const base = t.floor + TARGET_TILE.h
+  // `cost` is the rebirth level needed; at or above it the target shows Unlocked.
+  const unlocked = useGameStore((s) => s.rebirths >= t.cost)
   const lines = useMemo(() => {
     const dmg = { text: `${t.mult} Damage`, size: 46, color: '#ffa12b' }
-    if (t.unlocked) return [{ text: 'Unlocked', size: 50, color: '#5bff2a' }, dmg]
-    return [{ text: String(t.cost), size: 50, icon: t.currency, color: t.currency === 'gem' ? '#5bff2a' : '#fff' }, dmg]
-  }, [t])
+    if (unlocked) return [{ text: 'Unlocked', size: 50, color: '#5bff2a' }, dmg]
+    return [{ text: String(t.cost), size: 50, icon: t.currency, color: '#fff' }, dmg]
+  }, [t, unlocked])
   return (
     <group position={[t.x, 0, t.z]}>
       <Block position={[0, t.floor + TARGET_TILE.h / 2, 0]} size={[TARGET_TILE.size, TARGET_TILE.h, TARGET_TILE.size]} material={solid(t.pad)} cast={false} />
@@ -143,6 +173,7 @@ export default function Training() {
       {TARGETS.map((t) => (
         <Target key={t.block} t={t} />
       ))}
+      <TrainingTnts />
       <Banner />
     </group>
   )

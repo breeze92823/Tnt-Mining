@@ -1,7 +1,7 @@
 // `blast`: power (blocks per explosion). Types without a price are owned from the start.
 export const TNTS = [
   { id: 'classic', name: 'Classic', rarity: 'Common', blast: 1, top: '#e8262b', left: '#c21c20', right: '#d92327' },
-  { id: 'green', name: 'Green', rarity: 'Uncommon', blast: 3, top: '#3fd25a', left: '#1f9a3a', right: '#2bb84a' },
+  { id: 'green', name: 'Green', rarity: 'Uncommon', blast: 3, price: 100, top: '#3fd25a', left: '#1f9a3a', right: '#2bb84a' },
   { id: 'yellow', name: 'Yellow', rarity: 'Uncommon', blast: 6, price: 2000, top: '#ffd21f', left: '#c79a0a', right: '#e6b811' },
   { id: 'blue', name: 'Blue', rarity: 'Rare', blast: 12, price: 8000, top: '#4a9af0', left: '#1f5fc8', right: '#2f7fe0' },
   { id: 'purple', name: 'Purple', rarity: 'Rare', blast: 25, price: 25000, top: '#a43fe0', left: '#6a1fb8', right: '#8a2fd0' },

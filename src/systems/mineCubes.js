@@ -1,11 +1,13 @@
 import { HUB_WALL, MINE_CUBES, NORTH } from '../data/world.js'
 import { player } from './playerState.js'
 import { tntById } from '../data/tnts.js'
-import { useGameStore } from '../store/useGameStore.js'
+import { oreFor } from '../data/ores.js'
+import { clearPickups, spawnPickup } from './pickups.js'
+import { blastPower as blastPowerOf, useGameStore } from '../store/useGameStore.js'
 
 // The Forest Mine floor: a cols x rows grid of columns, each a stack of
-// `layers` 2 m cubes. Removing a cube digs the top layer of its column (the
-// floor drops 2 m); dug cubes stay gone until the player is back in the hub
+// `layers` 1 m cubes. Removing a cube digs the top layer of its column (the
+// floor drops 1 m); dug cubes stay gone until the player is back in the hub
 // (south of the hub wall), then every column is restored at once. Framework-free: the
 // renderer (world/MineGate.jsx) subscribes, terrainHeight.js reads mineFloorAt.
 // A column is addressed by (col, row): col 0 is the west edge (x), row 0 the
@@ -69,10 +71,10 @@ export function placedTnt() {
   return placed
 }
 
-export const tntKindAt = (i) => placedKind.get(i) || 'green'
+export const tntKindAt = (i) => placedKind.get(i) || 'classic'
 
 // Puts a TNT block on top of a column's floor. Returns true if placed.
-export function placeTnt(col, row, kind = 'green') {
+export function placeTnt(col, row, kind = 'classic') {
   if (!inGrid(col, row) || hasTnt(col, row)) return false
   placed.add(indexOf(col, row))
   placedKind.set(indexOf(col, row), kind)
@@ -138,6 +140,27 @@ const _preview = { col: 0, row: 0 } // reused result of previewCube — read it 
 // `prefCol`/`prefRow` (the cube currently shown) get STICKY metres of head start, so the
 // preview doesn't flicker between two cubes when the pointer sits near their border.
 const STICKY = 0.45
+
+// The column a camera ray actually hits (floor and pit bottoms included), so
+// TNT can be aimed anywhere in the mine, not just at nearby top surfaces.
+// Marches the ray in small steps until it dips under a column's surface.
+// Null when it leaves the mine without hitting, or hits a column holding TNT.
+const _aim = { col: 0, row: 0 }
+export function aimCube(ray, maxDist = 90) {
+  const { origin: o, direction: d } = ray
+  for (let t = 0; t < maxDist; t += 0.2) {
+    const c = cubeAt(o.x + d.x * t, o.z + d.z * t)
+    if (!c) continue
+    const i = indexOf(c.col, c.row)
+    if (o.y + d.y * t > surfaceY(i)) continue
+    if (placed.has(i)) return null
+    _aim.col = c.col
+    _aim.row = c.row
+    return _aim
+  }
+  return null
+}
+
 export function previewCube(x, z, facing, aim, prefCol = -1, prefRow = -1) {
   const ownCol = Math.floor((x - x0) / size)
   const ownRow = Math.floor((z - z0) / size)
@@ -173,11 +196,13 @@ export function previewCube(x, z, facing, aim, prefCol = -1, prefRow = -1) {
 // the top layer of every column within the TNT's blast radius (and any TNT among
 // them, which goes off with it).
 export const FUSE_MS = 5000
-// Bigger-power TNT reaches further and deeper: radius 1 for power < 10, +1 per power of ten, max 6.
-const blastRadius = (power) => Math.min(6, 1 + Math.floor(Math.log10(power)))
+// Bigger-power TNT reaches further and deeper. Radius starts at 2 (Classic's 21-cube pit)
+// and grows by 2 per power of ten, max 12 (about the width of the mine).
+const blastRadius = (power) => Math.min(12, 2 + Math.floor(Math.log10(power) * 2))
 // Depth in layers follows the same steps (max `layers`, the mine's full depth).
 const blastDepth = (power) => Math.min(layers, 1 + Math.floor(Math.log10(power)))
-const lit = new Map() // index -> performance.now() when it blasts
+const CORE = 1// every blast digs at least the (2*CORE+1)^2 cubes around the TNT
+const lit = new Map()// index -> performance.now() when it blasts
 const blastListeners = new Set()
 
 // Index -> blast time of every lit TNT, for the renderer.
@@ -204,11 +229,15 @@ export function onBlast(fn) {
   return () => blastListeners.delete(fn)
 }
 
-// Cubes dug within the player's Collection Range land in the inventory as dirt,
-// one per cube times the power of the TNT that blasted it.
+// Fires a blast with no digging (the Training targets): no cubes; `scale` sizes the
+// effects and `shock` toggles the shockwave and camera shake, `debris` the flying chunks.
+export function emitBlast(x, y, z, power, { scale = 1, shock = true, debris = true } = {}) {
+  for (const fn of blastListeners) fn({ x, y, z, cubes: [], power, scale, shock, debris })
+}
+
+// Every dug cube drops a pickup of the ore's item (data/ores.js) worth the power of
+// the TNT that blasted it; the player collects it (systems/pickups.js).
 function detonate(startIndex) {
-  const { range } = useGameStore.getState()
-  let mined = 0
   const queue = [startIndex]
   const done = new Set(queue)
   while (queue.length) {
@@ -216,17 +245,22 @@ function detonate(startIndex) {
     const col = i % cols
     const row = Math.floor(i / cols)
     const c = cubeCenter(col, row)
-    const blastX = c.x
-    const blastZ = c.z
     const power = tntById(tntKindAt(i)).blast
-    const radius = blastRadius(power)
-    const depth = blastDepth(power)
+    // blastPower = equipped TNT's blast + the click-grown clickPower (starts at 4).
+    const st = useGameStore.getState()
+    const blastPower = blastPowerOf(st)
+    // At the start (blastPower <= 5) a blast digs exactly 21 cubes: a 5x5 disc (corners cut), one layer deep.
+    const classic = blastPower <= 5
+    const radius = classic ? 2 : blastRadius(blastPower)
+    const depth = classic ? 1 : blastDepth(blastPower)
     placed.delete(i)
     placedKind.delete(i)
     lit.delete(i)
-    for (const fn of blastListeners) fn({ x: c.x, y: c.y + size / 2, z: c.z })
-    for (let dr = -radius; dr <= radius; dr++) {
-      for (let dc = -radius; dc <= radius; dc++) {
+    const cubes = [] // dug cubes (position + ore), for the debris
+    const blast = { x: c.x, y: c.y + size / 2, z: c.z, cubes, power }
+    const reach = Math.max(radius, CORE) // the guaranteed pit may be wider than a small blast
+    for (let dr = -reach; dr <= reach; dr++) {
+      for (let dc = -reach; dc <= reach; dc++) {
         const cc = col + dc
         const rr = row + dr
         if (!inGrid(cc, rr)) continue
@@ -235,12 +269,26 @@ function detonate(startIndex) {
           done.add(j)
           queue.push(j)
         }
-        const inRange = Math.hypot(blastX - player.position.x, blastZ - player.position.z) <= range
-        for (let d = 0; d < depth && dig(j); d++) if (inRange) mined += power
+        // Ragged crater: the centre always goes full depth; further out, columns
+        // are skipped at random and the ones hit are dug shallower.
+        const norm = Math.hypot(dc, dr) / (radius + 0.5)
+        // The 3x3 around the TNT is always dug, so a pit is never too narrow to move in.
+        const core = Math.abs(dc) <= CORE && Math.abs(dr) <= CORE
+        if (norm > 1 && !core) continue
+        if (!classic && !core && norm > 0.4 && Math.random() > 1 - ((norm - 0.4) / 0.6) * 0.85) continue
+        const cut = norm === 0 ? depth : Math.max(1, Math.min(depth, Math.round(depth * (1 - norm * 0.6) + (Math.random() - 0.5) * 1.6)))
+        for (let d = 0; d < cut; d++) {
+          const layer = dug[j]
+          const cp = cubeCenter(cc, rr)
+          if (!dig(j)) break
+          const ore = oreFor(cc, rr, layer)
+          if (cubes.length < 40) cubes.push({ x: cp.x, y: cp.y - size / 2, z: cp.z, ore })
+          spawnPickup(cp.x, cp.y - size / 2, cp.z, ore, power)
+        }
       }
     }
+    for (const fn of blastListeners) fn(blast)
   }
-  if (mined) useGameStore.setState((s) => ({ dirt: s.dirt + mined }))
   changed()
 }
 
@@ -248,6 +296,7 @@ function detonate(startIndex) {
 function restoreAll() {
   dug.fill(0)
   anyDug = false
+  clearPickups()
   useGameStore.setState((s) => ({ tnt: Math.max(s.tnt, s.carryMax) })) // restock on return to the hub
   changed()
 }

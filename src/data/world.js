@@ -75,16 +75,16 @@ export const TRAINING_STAGE = { x0: -37, x1: -30, z0: -19, z1: 19, top: 1.0, str
 export const TARGET_ROWS = { front: -26, back: -33.5 }
 export const TARGETS = [
   // front row, on the floor
-  { block: 'stone', mult: '1.5x', cost: 1, currency: 'rebirth', row: 'front', z: 13.5, pad: '#6f7480' },
-  { block: 'wood', mult: '1x', unlocked: true, row: 'front', z: 6.5, pad: '#8b5a2b' },
+  { block: 'stone', mult: '1.5x', cost: 2, currency: 'rebirth', row: 'front', z: 13.5, pad: '#6f7480' },
+  { block: 'wood', mult: '1x', cost: 0, currency: 'rebirth', row: 'front', z: 6.5, pad: '#8b5a2b' },
   { block: 'snow', mult: '3x', cost: 3, currency: 'rebirth', row: 'front', z: -6.5, pad: '#5fb4ef' },
   { block: 'emerald', mult: '5x', cost: 5, currency: 'rebirth', row: 'front', z: -13.5, pad: '#f08a2a' },
   // back row, on the stage
   { block: 'sand', mult: '7x', cost: 7, currency: 'rebirth', row: 'back', z: 14, pad: '#e8b923' },
-  { block: 'amethyst', mult: '10x', cost: 69, currency: 'gem', row: 'back', z: 7, pad: '#8e4fd6' },
-  { block: 'crystal', mult: '50x', cost: 449, currency: 'gem', row: 'back', z: 0, pad: '#c8202e' },
-  { block: 'lava', mult: '25x', cost: 205, currency: 'gem', row: 'back', z: -7, pad: '#2e2f36' },
-  { block: 'ruby', mult: '10x', cost: 10, currency: 'rebirth', row: 'back', z: -14, pad: '#c8202e' },
+  { block: 'amethyst', mult: '10x', cost: 9, currency: 'rebirth', row: 'back', z: 7, pad: '#8e4fd6' },
+  { block: 'crystal', mult: '50x', cost: 20, currency: 'rebirth', row: 'back', z: 0, pad: '#c8202e' },
+  { block: 'lava', mult: '25x', cost: 15, currency: 'rebirth', row: 'back', z: -7, pad: '#2e2f36' },
+  { block: 'ruby', mult: '10x', cost: 9, currency: 'rebirth', row: 'back', z: -14, pad: '#c8202e' },
 ].map((t) => {
   const floor = t.row === 'back' ? TRAINING_STAGE.top : FLOOR_TOP
   return { ...t, x: TARGET_ROWS[t.row], floor, top: floor + TARGET_TILE.h + TARGET_BLOCK }
@@ -131,12 +131,12 @@ export const NORTH_TREES = [
 // column, lowering the floor 2 m; dug cubes stay gone until the player is back
 // in the hub (south of HUB_WALL). See systems/mineCubes.js.
 export const MINE_CUBES = {
-  size: 2,
-  layers: 8,
-  cols: (NORTH.mine.x1 - NORTH.mine.x0) / 2,
-  rows: (NORTH.mine.z1 - NORTH.mine.z0) / 2,
+  size: 1,
+  layers: 32,
+  cols: (NORTH.mine.x1 - NORTH.mine.x0) / 1,
+  rows: (NORTH.mine.z1 - NORTH.mine.z0) / 1,
   top: FLOOR_TOP, // top face of an undug column
-  bottom: FLOOR_TOP - 8 * 2, // floor of a fully dug column (layers * size)
+  bottom: FLOOR_TOP - 32 * 1, // floor of a fully dug column (layers * size)
 }
 
 // The pieces of `outer` left after cutting `hole` out of it (hole is clamped to
@@ -205,7 +205,7 @@ export const COLLIDERS = [
   ...PEDESTALS.map((p) => circle(p.x, p.z, 2.8, p.id === 'admin' ? 1.6 : 1.0)),
   // west: training stage + targets + bleachers
   box(TRAINING_STAGE.x0, TRAINING_STAGE.x1, TRAINING_STAGE.z0, TRAINING_STAGE.z1, TRAINING_STAGE.top),
-  ...TARGETS.map((t) => circle(t.x, t.z, 1.6, t.top)),
+  ...TARGETS.map((t) => box(t.x - TARGET_BLOCK / 2, t.x + TARGET_BLOCK / 2, t.z - TARGET_BLOCK / 2, t.z + TARGET_BLOCK / 2, t.top)),
   box(-W, -W + 3, -G, G, 1.0),
   box(-W, -W + 1.5, -G, G, 1.6),
   // east: leaderboard stage
