@@ -14,6 +14,7 @@ import { placeTrainingTnt, stepTrainingTnt } from '../systems/trainingTnt.js'
 import { playFuse } from '../systems/sfx.js'
 import { Vector3 } from 'three'
 import { inputState } from '../systems/input.js'
+import { reportLocal } from '../systems/net.js'
 
 // A left click only adds blast power once per cooldown.
 const CLICK_COOLDOWN_MS = 1000
@@ -101,6 +102,7 @@ export default function GameLoop() {
     stepTraining(dt)
     stepTrainingTnt()
     stepInteract() // after the player moved, so range checks use this frame's position
+    reportLocal(dt)
     inputState.interact = false // one-shot edge flag; a press nothing consumed must not linger
     updateCamera(camera, dt)
     _p.set(player.position.x, player.position.y + 1.1, player.position.z).project(camera)

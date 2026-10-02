@@ -10,6 +10,7 @@ import World from './components/world/World.jsx'
 import Sky from './components/Sky.jsx'
 import Lighting from './components/Lighting.jsx'
 import Player from './components/Player.jsx'
+import RemotePlayers from './components/RemotePlayers.jsx'
 import GuideArrows from './components/GuideArrows.jsx'
 import Hud from './components/Hud.jsx'
 import TouchControls from './components/TouchControls.jsx'
@@ -64,6 +65,7 @@ export default function App() {
           <LoadingGate onReady={onSceneReady} />
         </Suspense>
         <Player />
+        <RemotePlayers />
         <GuideArrows />
       </Canvas>
       <Hud />

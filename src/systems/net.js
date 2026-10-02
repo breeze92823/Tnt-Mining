@@ -6,12 +6,23 @@
 // Sends the live stats the boards rank (`stats`) and, for a signed-in player, the durable
 // save (`saveProgress`); restores it from `progress` on join; and exposes the `leaderboard`
 // push that components/world/Leaderboards.jsx renders.
-import { subscribeAuth, authState, getStableUserId, getDisplayName } from './bloxity.js'
+import {
+  subscribeAuth,
+  authState,
+  getStableUserId,
+  getDisplayName,
+  getEquippedAvatar,
+  getProportions,
+  onAvatarChanged,
+} from './bloxity.js'
+import { DEV_MODE } from '../data/bloxity.js'
+import { player } from './playerState.js'
 import { useGameStore, blastPower, progressSnapshot, hydrateProgress, setProgressKnown } from '../store/useGameStore.js'
 import {
   SERVER_URL,
   ROOM_NAME,
   JOIN_TIMEOUT_MS,
+  MOVE_SEND_INTERVAL_MS,
   RETRY_BACKOFF_MS,
   STATS_RESEND_DEBOUNCE_MS,
   PROGRESS_RESEND_DEBOUNCE_MS,
@@ -41,6 +52,100 @@ export function subscribeLeaderboard(fn) {
   leaderboardListeners.add(fn)
   if (lastLeaderboard) fn(lastLeaderboard, selfId)
   return () => leaderboardListeners.delete(fn)
+}
+
+// --- Remote players ---------------------------------------------------------
+// sessionId -> the OTHER player's live PlayerState schema instance. Colyseus patches its fields
+// in place, so a consumer reads e.g. `p.x` every frame; only add/remove needs a callback.
+const remotePlayers = new Map()
+const rosterListeners = new Set()
+
+function notifyRoster(kind, sessionId, p) {
+  for (const l of rosterListeners) {
+    try {
+      l[kind](sessionId, p)
+    } catch {
+      // A broken subscriber must not wedge the netcode.
+    }
+  }
+}
+
+// Replays the current roster immediately, so a component mounting after we're already online
+// doesn't miss whoever is already here.
+export function subscribeRoster(onAdd, onRemove) {
+  const entry = { onAdd, onRemove }
+  rosterListeners.add(entry)
+  for (const [sessionId, p] of remotePlayers) onAdd(sessionId, p)
+  return () => rosterListeners.delete(entry)
+}
+
+function clearRemotePlayers() {
+  for (const sessionId of remotePlayers.keys()) notifyRoster('onRemove', sessionId)
+  remotePlayers.clear()
+}
+
+// --- Avatar + position relay ------------------------------------------------
+// Same recipe components/Player.jsx renders the LOCAL player from: the base character dressed
+// with the signed-in player's equipped hat/back and proportions. Sent as an opaque JSON string
+// the server never parses, so components/RemotePlayers.jsx can rebuild an identical look.
+function avatarPayload() {
+  return {
+    equipped: authState.user && !DEV_MODE ? getEquippedAvatar() : null,
+    proportions: getProportions(),
+  }
+}
+
+let lastSentAvatar = ''
+
+function sendAvatarNow() {
+  if (!room) return
+  const payload = JSON.stringify(avatarPayload())
+  if (payload === lastSentAvatar) return
+  lastSentAvatar = payload
+  send('setAvatar', { avatar: payload })
+}
+
+// Local position/facing/gait, throttled out over `move`. Called every frame from
+// components/GameLoop.jsx. A no-op while offline.
+let moveAccumMs = 0
+let lastSentMove = null
+const MOVE_EPS = 0.01
+
+export function reportLocal(delta) {
+  if (!room) return
+  moveAccumMs += delta * 1000
+  if (moveAccumMs < MOVE_SEND_INTERVAL_MS) return
+  moveAccumMs = 0
+
+  const gs = useGameStore.getState()
+  const next = {
+    x: player.position.x,
+    y: player.position.y,
+    z: player.position.z,
+    yaw: player.facing,
+    moveBlend: Math.min(1, Math.hypot(player.velocity.x, player.velocity.z) / player.moveSpeed),
+    grounded: player.grounded,
+    bending: player.bending,
+    slot: gs.slot == null ? -1 : gs.slot,
+    tnt: gs.tntEquipped,
+  }
+  const last = lastSentMove
+  if (
+    last &&
+    Math.abs(next.x - last.x) < MOVE_EPS &&
+    Math.abs(next.y - last.y) < MOVE_EPS &&
+    Math.abs(next.z - last.z) < MOVE_EPS &&
+    Math.abs(next.yaw - last.yaw) < MOVE_EPS &&
+    Math.abs(next.moveBlend - last.moveBlend) < MOVE_EPS &&
+    next.grounded === last.grounded &&
+    next.bending === last.bending &&
+    next.slot === last.slot &&
+    next.tnt === last.tnt
+  ) {
+    return
+  }
+  lastSentMove = next
+  send('move', next)
 }
 
 // --- Connection state -------------------------------------------------------
@@ -201,6 +306,7 @@ async function connect() {
       client.joinOrCreate(ROOM_NAME, {
         username: getDisplayName(),
         userId: getStableUserId(), // '' for a guest
+        avatar: JSON.stringify(avatarPayload()),
       }),
       JOIN_TIMEOUT_MS,
       'join timed out',
@@ -264,14 +370,33 @@ function attachRoom(joined) {
     }
   })
 
+  // Called unconditionally: room.state can still be an empty shell right after joinOrCreate()
+  // resolves, and getStateCallbacks() defers registration until the `players` map arrives.
+  const $ = sdkModule.getStateCallbacks(room)
+  $(room.state).players.onAdd((p, sessionId) => {
+    if (sessionId === selfId) return
+    remotePlayers.set(sessionId, p)
+    notifyRoster('onAdd', sessionId, p)
+  })
+  $(room.state).players.onRemove((_p, sessionId) => {
+    if (sessionId === selfId) return
+    remotePlayers.delete(sessionId)
+    notifyRoster('onRemove', sessionId)
+  })
+
   // A fresh session starts every server field at its default, so re-state ours right away
   // instead of waiting for the next change.
   sendStatsNow()
+  lastSentAvatar = ''
+  sendAvatarNow()
+  lastSentMove = null
+  moveAccumMs = MOVE_SEND_INTERVAL_MS // send on the very next reportLocal()
   lastIdentity = { userId: getStableUserId(), username: getDisplayName() }
   setStatus('online')
 }
 
 function handleLeave() {
+  clearRemotePlayers()
   room = null
   selfId = ''
   connecting = false
@@ -302,7 +427,11 @@ export function init() {
     useGameStore.subscribe(onStateChange),
     // subscribeAuth also fires on friends/balance loads; sendIdentityNow()'s own diff check
     // filters those out.
-    subscribeAuth(() => sendIdentityNow()),
+    subscribeAuth(() => {
+      sendIdentityNow()
+      sendAvatarNow() // signing in/out flips avatarPayload()'s equipped gate
+    }),
+    onAvatarChanged(() => sendAvatarNow()),
   ]
   waitForAuth(USERNAME_WAIT_MS).then(() => {
     // A guest has no save to wait for: no need to ride out the full timeout.
@@ -338,6 +467,7 @@ export function teardown() {
       /* page is going away */
     }
   }
+  clearRemotePlayers()
   room = null
   connecting = false
   setStatus('idle')
