@@ -214,7 +214,7 @@ export function preload() {
 const renderPickup = (ctx) => renderNotes(ctx, { notes: [880, 1320], gap: 0.045, attack: 0.004, decay: 0.07, type: 'sine', peak: 0.6 })
 export const playPickup = () => play('pickup', renderPickup, 0.35)
 
-export const playExplosion = () => play('boom', renderExplosion, 0.55)
+export const playExplosion = () => play('boom', renderExplosion, 0.1)
 export const playFuse = () => play('fuse', renderFuse, 0.5)
 
 // "The hold actually did something" — played by interact.js on every confirmed hold.
