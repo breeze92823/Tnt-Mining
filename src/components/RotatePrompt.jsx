@@ -44,7 +44,7 @@ export default function RotatePrompt() {
         <path d="M2 5v4h4" />
       </svg>
       <h2>Rotate your device</h2>
-      <p>Tnt Mining plays in landscape. Turn your phone sideways to keep going.</p>
+      <p>+1 TNT Mining plays in landscape. Turn your phone sideways to keep going.</p>
     </div>
   )
 }

@@ -5,16 +5,22 @@ import './hud.css'
 import App from './App.jsx'
 import { install as installInput } from './systems/input.js'
 import { install as installAudio } from './systems/audio.js'
+import { preload as preloadSfx } from './systems/sfx.js'
 import { player, resetPlayer } from './systems/playerState.js'
 import { setView, syncYawToPlayer } from './systems/cameraOrbit.js'
 import { SPAWN, SPAWN_FACING } from './data/world.js'
 import { init as initBloxity } from './systems/bloxity.js'
+import { init as initNet, flushProgress } from './systems/net.js'
 
 initBloxity()
+initNet() // saved progress + leaderboards; stays solo if the server is unreachable
+window.addEventListener('pagehide', flushProgress)
 resetPlayer(SPAWN, SPAWN_FACING)
 syncYawToPlayer()
 installInput()
 installAudio() // unlocks the AudioContext on the first gesture
+window.addEventListener('pointerdown', preloadSfx, { once: true }) // UI sounds are synthesized; render them on the first gesture
+window.addEventListener('keydown', preloadSfx, { once: true })
 
 // Dev-only console hook, e.g. __game.teleport(0, 0, -5)
 if (import.meta.env.DEV) {

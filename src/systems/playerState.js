@@ -23,3 +23,7 @@ export function resetPlayer(spawn = { x: 0, y: 0, z: 0 }, facing = Math.PI) {
   player.grounded = true
   player.facing = facing
 }
+
+// Where the player's chest is on screen, 0..1 from the top-left; written each frame
+// by components/GameLoop.jsx for HUD effects that appear around the player.
+export const playerScreen = { x: 0.5, y: 0.5 }

@@ -1,29 +1,32 @@
 import { useEffect } from 'react'
-import { closePanel, useGameStore } from '../../store/useGameStore.js'
+import { TNTS, tntById } from '../../data/tnts.js'
+import { ORES } from '../../data/ores.js'
+import { compact } from '../../utils/compact.js'
+import { damageMult, moneyMult, doRebirth, playerLevel, rebirthLevelFor, sellBlocks, buyDamage, buyTnt, buyUpgrade, closePanel, equipTnt, selectSlot, useGameStore } from '../../store/useGameStore.js'
 import { resetPlayer } from '../../systems/playerState.js'
 import { syncYawToPlayer } from '../../systems/cameraOrbit.js'
 import { setSetting, settings } from '../../systems/settingsState.js'
 import { useSettings } from '../../systems/bloxityHooks.js'
 import {
-  BagIcon, BasketIcon, BurstIcon, CalendarIcon, CashIcon, DirtIcon, GearIcon, GemIcon, GiftIcon,
-  PickaxeIcon, PlusIcon, PotionIcon, RebirthIcon, ScrollIcon, TeleportIcon, TntIcon,
+  BagIcon, BasketIcon, BoltIcon, BurstIcon, CalendarIcon, CashIcon, DirtIcon, OreIcon, GearIcon, GemIcon, GiftIcon, MagnetIcon,
+  PickaxeIcon, PlusIcon, PotionIcon, RebirthIcon, ScrollIcon, TeleportIcon, TntIcon, UpgradeIcon,
 } from './icons.jsx'
 
 // Modal windows opened from the HUD buttons. One open at a time
 // (useGameStore.panel); click the backdrop or ✕ to close.
 
-const TNT_SHOP = [
-  { name: 'Green TNT', rarity: 'Uncommon', dmg: '218 DMG', price: 'Owned', color: '#2bc04a' },
-  { name: 'Red TNT', rarity: 'Rare', dmg: '540 DMG', price: '$1,500', color: '#e3262b' },
-  { name: 'Corrupt TNT', rarity: 'Epic', dmg: 'Big Explosion!', price: '69', gem: true, color: '#ffd400' },
-  { name: 'Atomic TNT', rarity: 'Legendary', dmg: 'Huge Explosion!', price: '205', gem: true, color: '#7ee81e' },
-  { name: 'Admin TNT', rarity: 'Mythic', dmg: 'Massive Explosion!', price: '449', gem: true, color: '#e01b24' },
+// Damage packs (cash price, blastPower gained); the first is the featured "best value" one.
+const DAMAGE_PACKS = [
+  { amount: '500K', power: 500e3, price: 250e6 },
+  { amount: '5K', power: 5e3, price: 10e6 },
+  { amount: '25K', power: 25e3, price: 25e6 },
+  { amount: '125K', power: 125e3, price: 125e6 },
 ]
 
 const DESTINATIONS = [
   { name: 'Spawn', pos: { x: 0, y: 0.3, z: 2 }, facing: Math.PI },
-  { name: 'Desert Mine', pos: { x: 0, y: 0.4, z: -36 }, facing: Math.PI },
-  { name: 'Training', pos: { x: -27, y: 0.4, z: 0 }, facing: -Math.PI / 2 },
+  { name: 'Forest Mine', pos: { x: 0, y: 0.4, z: -36 }, facing: Math.PI },
+  { name: 'Training', pos: { x: -22, y: 0.4, z: 0 }, facing: -Math.PI / 2 },
   { name: 'Leaderboards', pos: { x: 29, y: 0.4, z: 0 }, facing: Math.PI / 2 },
   { name: 'Premium TNT', pos: { x: 0, y: 0.4, z: 26 }, facing: 0 },
 ]
@@ -39,43 +42,201 @@ const DAILY = [
 ]
 
 function Shop() {
+  const [best, ...rest] = DAMAGE_PACKS
   return (
-    <div className="panel-list">
-      {TNT_SHOP.map((t) => (
-        <div key={t.name} className="panel-item">
-          <span className="panel-swatch" style={{ background: t.color }}>TNT</span>
-          <div className="panel-item-text">
-            <b>{t.name}</b>
-            <small>{t.rarity} · {t.dmg}</small>
-          </div>
-          <button type="button" className={`panel-btn${t.price === 'Owned' ? ' is-muted' : ''}`}>
-            {t.gem && <GemIcon className="panel-btn-icon" />}
-            {t.price}
-          </button>
+    <div className="shop">
+      <div className="shop-card shop-best">
+        <div className="shop-best-text">
+          <b>{best.amount} Damage</b>
+          <span className="shop-tag">Best Value!</span>
+          <ShopPrice pack={best} />
         </div>
-      ))}
+        <BurstIcon className="shop-best-icon" />
+      </div>
+      <div className="shop-row">
+        {rest.map((p) => (
+          <div key={p.amount} className="shop-card shop-pack">
+            <b>{p.amount}</b>
+            <BurstIcon className="shop-pack-icon" />
+            <ShopPrice pack={p} />
+          </div>
+        ))}
+      </div>
     </div>
   )
 }
 
+const ShopPrice = ({ pack }) => {
+  const afford = useGameStore((st) => st.money >= pack.price)
+  return (
+    <button type="button" className={`shop-price${afford ? '' : ' is-muted'}`} disabled={!afford} onClick={() => buyDamage(pack.power, pack.price)}>
+      <CashIcon className="shop-price-icon" />
+      {short(pack.price)}
+    </button>
+  )
+}
+
+// The player's inventory: the HUD hotbar shows these in order (slot = index).
+export const INVENTORY = [
+  { name: 'TNT', count: 5, Icon: TntIcon, enchanted: true, stock: 'tnt' }, // `stock`: live count key in the game store,
+  { name: 'Pickaxe', Icon: PickaxeIcon },
+  // One slot per ore item (Dirt, Stone, Coal, Gold, Diamond, Bedrock), counted live in the store.
+  ...ORES.map((o) => ({ name: o.itemName, Icon: (p) => <OreIcon base={o.base} edge={o.edge} fleck={o.fleck} {...p} />, stock: o.item, hideEmpty: true })),
+]
+
+// The inventory entries to show, each with its slot index (the store's `slot`, held-item model):
+// ore blocks are hidden while their count is 0.
+export const visibleSlots = (stocks) =>
+  INVENTORY.map((item, i) => ({ ...item, i })).filter((it) => !it.hideEmpty || stocks[it.stock] > 0)
+
 function Bag() {
-  const items = [
-    { name: 'Green TNT', count: 5, Icon: TntIcon },
-    { name: 'Pickaxe', count: 1, Icon: PickaxeIcon },
-    { name: 'Dirt', count: 141, Icon: DirtIcon },
-  ]
+  const slot = useGameStore((s) => s.slot)
+  const stocks = useGameStore()
+  const equipped = tntById(useGameStore((s) => s.tntEquipped))
   return (
     <div className="panel-grid">
-      {items.map(({ name, count, Icon }) => (
-        <div key={name} className="panel-tile">
-          <Icon className="panel-tile-icon" />
-          <b>{name}</b>
-          <small>x{count}</small>
+      {visibleSlots(stocks).map(({ name, count: base, stock, Icon, i }) => {
+        const count = stock ? stocks[stock] : base
+        return (
+        <button
+          key={name}
+          type="button"
+          className={`panel-tile panel-tile-btn${slot === i ? ' is-selected' : ''}`}
+          aria-pressed={slot === i}
+          onClick={(e) => { selectSlot(i); e.currentTarget.blur() }}
+        >
+          <Icon className="panel-tile-icon" {...(stock === 'tnt' && equipped)} />
+          <b>{stock === 'tnt' ? `${equipped.name} TNT` : name}</b>
+          <small>{count !== undefined ? `x${compact(count)}` : slot === i ? 'Selected' : ''}</small>
+        </button>
+        )
+      })}
+    </div>
+  )
+}
+
+function Tnts() {
+  const owned = useGameStore((s) => s.tntOwned)
+  const equipped = useGameStore((s) => s.tntEquipped)
+  const cash = useGameStore((s) => s.money)
+  const gems = useGameStore((s) => s.gems)
+  return (
+    <div className="panel-list">
+      {TNTS.map((t) => {
+        const has = owned.includes(t.id)
+        const afford = (t.gem ? gems : cash) >= t.price
+        return (
+          <div key={t.id} className={`tnt-row tnt-${t.rarity.toLowerCase()}`}>
+            <TntIcon className="tnt-row-icon" top={t.top} left={t.left} right={t.right} />
+            <div className="upgrade-text">
+              <b>{t.name}</b>
+              <span className="tnt-rarity">{t.rarity}</span>
+              <span className="tnt-blast"><BurstIcon className="tnt-blast-icon" />+{short(t.blast)}</span>
+            </div>
+            {equipped === t.id ? (
+              <button type="button" className="panel-btn tnt-equipped" disabled>Equipped</button>
+            ) : has ? (
+              <button type="button" className="panel-btn tnt-equip" onClick={() => equipTnt(t.id)}>Equip</button>
+            ) : (
+              <button
+                type="button"
+                className={`panel-btn${afford ? '' : ' is-muted'}`}
+                disabled={!afford}
+                onClick={() => buyTnt(t.id, t.price, t.gem)}
+              >
+                {t.gem && <GemIcon className="panel-btn-icon" />}
+                {t.gem ? t.price : money(t.price)}
+              </button>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// 1200 -> 1.2K, 4e6 -> 4M ...
+const short = (n) => {
+  const u = [[1e12, 'T'], [1e9, 'B'], [1e6, 'M'], [1e3, 'K']].find(([v]) => n >= v)
+  return u ? `${+(n / u[0]).toFixed(1)}${u[1]}` : `${n}`
+}
+const money = (n) => `$${short(n)}`
+
+// Each upgrade raises a store value by one per purchase and gets pricier.
+const UPGRADES = [
+  { key: 'carryMax', name: 'Carried TNT', Icon: BagIcon, tone: 'tan', price: (v) => 600 * 2 ** (v - 5) },
+  { key: 'placeMax', name: 'Placed TNT', Icon: TntIcon, tone: 'red', price: (v) => 3000 * 3 ** (v - 1) },
+  { key: 'range', name: 'Collection Range', Icon: MagnetIcon, tone: 'purple', price: (v) => Math.round((400 * 1.5 ** (v - 3)) / 10) * 10 },
+  { key: 'speed', name: 'Speed', Icon: BoltIcon, tone: 'blue', price: (v) => Math.round((400 * 1.5 ** (v - 22)) / 10) * 10 },
+]
+
+function Upgrades() {
+  const state = useGameStore()
+  return (
+    <div className="panel-list">
+      {UPGRADES.map(({ key, name, Icon, tone, price }) => {
+        const v = state[key]
+        const cost = price(v)
+        const afford = state.money >= cost
+        return (
+          <div key={key} className={`upgrade-row upgrade-${tone}`}>
+            <Icon className="upgrade-icon" />
+            <div className="upgrade-text">
+              <b>{name}</b>
+              <span className="upgrade-levels">{v}<i>▶</i><em>{v + 1}</em></span>
+            </div>
+            <button
+              type="button"
+              className={`panel-btn${afford ? '' : ' is-muted'}`}
+              disabled={!afford}
+              onClick={() => buyUpgrade(key, cost)}
+            >
+              {money(cost)}
+            </button>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// Sellable blocks: `stock` is the store count key, `price` the cash per block.
+const SELLABLE = ORES.map((o) => ({ stock: o.item, name: o.itemName, rarity: o.name, price: o.price, Icon: (p) => <OreIcon base={o.base} edge={o.edge} fleck={o.fleck} {...p} /> }))
+
+function Sell() {
+  const state = useGameStore()
+  const mult = moneyMult(state.rebirths)
+  const rows = SELLABLE.filter((b) => state[b.stock] > 0)
+  const total = rows.reduce((sum, b) => sum + Math.round(state[b.stock] * b.price * mult), 0)
+  return (
+    <div className="panel-list">
+      <div className="sell-total">
+        <b>+{money(total)}</b>
+        <button
+          type="button"
+          className={`panel-btn${total ? '' : ' is-muted'}`}
+          disabled={!total}
+          onClick={() => sellBlocks(rows)}
+        >
+          SELL ALL
+        </button>
+      </div>
+      {rows.map(({ stock, name, rarity, price, Icon }) => (
+        <div key={stock} className={`sell-row tnt-${rarity.toLowerCase()}`}>
+          <Icon className="sell-icon" />
+          <div className="upgrade-text">
+            <b>{name}</b>
+            <span className="tnt-rarity">{rarity}</span>
+          </div>
+          <div className="sell-side">
+            <span>x{short(state[stock])}</span>
+            <button type="button" className="panel-btn" onClick={() => sellBlocks([{ stock, price }])}>
+              +{money(Math.round(state[stock] * price * mult))}
+            </button>
+          </div>
         </div>
       ))}
-      {Array.from({ length: 5 }, (_, i) => (
-        <div key={i} className="panel-tile is-empty" />
-      ))}
+      {!rows.length && <p className="panel-note">Nothing to sell. Mine some blocks!</p>}
     </div>
   )
 }
@@ -95,16 +256,32 @@ function Daily() {
   )
 }
 
+const fmtMult = (n) => `${+n.toFixed(2)}x`
+
 function Rebirth() {
-  const progress = useGameStore((s) => s.rebirthProgress)
+  const level = useGameStore(playerLevel)
   const rebirths = useGameStore((s) => s.rebirths)
+  const need = rebirthLevelFor(rebirths)
+  const ready = level >= need
+  const rows = [
+    { label: 'Damage', Icon: BurstIcon, from: damageMult(rebirths), to: damageMult(rebirths + 1) },
+    { label: 'Money', Icon: CashIcon, from: moneyMult(rebirths), to: moneyMult(rebirths + 1) },
+  ]
   return (
-    <div className="panel-col">
-      <RebirthIcon className="panel-hero" />
-      <p>Rebirths: <b>{rebirths}</b> → <b>{rebirths + 1}</b></p>
-      <p>Resets your money for a permanent <b>+1.5x Damage</b> boost.</p>
-      <div className="panel-progress"><div style={{ width: `${progress}%` }} /><span>{progress}%</span></div>
-      <button type="button" className="panel-btn panel-btn-wide is-muted">Need $1,000</button>
+    <div className="panel-col rebirth">
+      {rows.map(({ label, Icon, from, to }) => (
+        <div key={label} className="rebirth-row">
+          <div className="rebirth-cell"><Icon className="rebirth-icon" /><span>{fmtMult(from)} {label}</span></div>
+          <i className="rebirth-arrow">▶</i>
+          <div className="rebirth-cell rebirth-next"><Icon className="rebirth-icon" /><span>{fmtMult(to)} {label}</span></div>
+        </div>
+      ))}
+      <p className="rebirth-warn">*Damage gets reset on rebirth*</p>
+      <div className="rebirth-bar"><div style={{ width: `${Math.min(100, (level / need) * 100)}%` }} /><span>Level: {level}/{need}</span></div>
+      <div className="rebirth-actions">
+        <button type="button" className={`panel-btn${ready ? '' : ' is-muted'}`} disabled={!ready} onClick={doRebirth}>Rebirth</button>
+        <button type="button" className="panel-btn rebirth-skip" onClick={closePanel}>Skip</button>
+      </div>
     </div>
   )
 }
@@ -169,10 +346,13 @@ const Message = ({ Icon, children }) => (
 )
 
 const PANELS = {
-  shop: { title: 'Shop', Icon: BasketIcon, tone: 'orange', body: Shop },
+  shop: { title: 'Shop', Icon: BasketIcon, tone: 'orange', body: Shop, cls: 'panel-shop' },
   bag: { title: 'Bag', Icon: BagIcon, tone: 'orange', body: Bag },
   daily: { title: 'Daily Rewards', Icon: CalendarIcon, tone: 'purple', body: Daily },
-  rebirth: { title: 'Rebirth', Icon: RebirthIcon, tone: 'purple', body: Rebirth },
+  tnts: { title: 'TNTs', Icon: TntIcon, tone: 'pink', body: Tnts },
+  sell: { title: 'Sell Blocks', Icon: CashIcon, tone: 'green', body: Sell },
+  upgrades: { title: 'Upgrades', Icon: UpgradeIcon, tone: 'lime', body: Upgrades },
+  rebirth: { title: 'Rebirth', Icon: RebirthIcon, tone: 'purple', body: Rebirth, cls: 'panel-rebirth' },
   teleport: { title: 'Teleport', Icon: TeleportIcon, tone: 'slate', body: Teleport },
   quests: { title: 'Quests', Icon: ScrollIcon, tone: 'slate', body: Quests },
   settings: { title: 'Settings', Icon: GearIcon, tone: 'slate', body: Settings },
@@ -212,7 +392,7 @@ export default function Panels() {
   const Body = p.body
   return (
     <div className="panel-backdrop" onPointerDown={(e) => e.target === e.currentTarget && closePanel()}>
-      <div className={`panel panel-${p.tone}`}>
+      <div className={`panel panel-${p.tone}${p.cls ? ` ${p.cls}` : ''}`}>
         <div className="panel-head">
           <p.Icon className="panel-head-icon" />
           <h2>{p.title}</h2>

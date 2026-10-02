@@ -96,12 +96,48 @@ export function makeGait(built) {
 // item overhead. Applied last in updateGait so it wins over walk/idle/airborne.
 const HOLD_ARM = -3.0
 const HOLD_ARM_FORWARD = -1.57 // arms straight out in front, for held food
-// mode: false (none), true / 'up' (overhead poop) or 'forward' (food).
+// mode: false (none), true / 'up' (overhead poop), 'forward' (food) or
+// 'both' (both arms out in front, angled in to meet at the selected
+// inventory item; see bothHandsLayout).
 export function setHolding(gait, mode) {
   if (gait) gait.holding = mode
 }
 
+// Two-handed grip: each arm points forward and yaws inward until the hands
+// are HAND_GAP/2 either side of the centre line. Returns the inward yaw and
+// the forward reach of the hands from the shoulder pivots (Spine2 frame), so
+// heldItem.js can centre the item between them. Follows the shoulderWidth /
+// armLength proportions because it reads the live node transforms.
+const HAND_GAP = 1.9 // hand centres; arms are 0.64 wide, so a 1.3 block fits between
+const ARM_LEN = 2.4
+const _layout = { yaw: 0, y: 0, z: 0 } // reused; read before the next call
+export function bothHandsLayout(nodes) {
+  const off = nodes.ArmL_Offset
+  const arm = nodes.ArmL1
+  if (!off || !arm) return null
+  const len = ARM_LEN * (arm.scale.y || 1)
+  const yaw = Math.asin(Math.max(0, Math.min(0.95, (Math.abs(off.position.x) - HAND_GAP / 2) / len)))
+  _layout.yaw = yaw
+  _layout.y = off.position.y
+  _layout.z = off.position.z + len * Math.cos(yaw)
+  return _layout
+}
+
+const _qYaw = new THREE.Quaternion()
 function applyHold(gait) {
+  if (gait.holding === 'both') {
+    const layout = bothHandsLayout(gait.built.nodes || {})
+    const yaw = layout ? layout.yaw : 0
+    for (const a of gait.arms) {
+      // ArmR sits at -x: yawing it by +yaw swings the hand toward the centre.
+      const side = a.bone.name === 'ArmR1' ? 1 : -1
+      gait.q.setFromAxisAngle(gait.axis, HOLD_ARM_FORWARD)
+      _qYaw.setFromAxisAngle(AXES.y, side * yaw)
+      gait.q.premultiply(_qYaw)
+      a.bone.quaternion.copy(a.bind).premultiply(gait.q)
+    }
+    return
+  }
   gait.q.setFromAxisAngle(gait.axis, gait.holding === 'forward' ? HOLD_ARM_FORWARD : HOLD_ARM)
   for (const a of gait.arms) a.bone.quaternion.copy(a.bind).premultiply(gait.q)
 }

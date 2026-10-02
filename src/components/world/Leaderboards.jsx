@@ -1,7 +1,8 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo } from 'react'
 import { LB_BOARD_X, LB_BOARDS, LB_STAGE, WALL } from '../../data/world.js'
 import { MAT } from '../../materials/hub.js'
-import { bannerTexture, leaderboardTexture } from '../../utils/labels.js'
+import { bannerTexture, leaderboardTexture, setLeaderboardRows } from '../../utils/labels.js'
+import { subscribeLeaderboard } from '../../systems/net.js'
 import { Block, Slab } from './Parts.jsx'
 
 // East zone: a two-step grey stage with a red carpet up the middle, three
@@ -11,6 +12,13 @@ const BOARD_X = LB_BOARD_X
 function Board({ board }) {
   const map = useMemo(() => leaderboardTexture(board), [board])
   const top = LB_STAGE.top
+  useEffect(
+    () =>
+      subscribeLeaderboard((data, selfId) => {
+        setLeaderboardRows(board, data?.[board.id], selfId)
+      }),
+    [board],
+  )
   return (
     <group position={[BOARD_X, 0, board.z]}>
       {[-2.8, 2.8].map((dz) => (

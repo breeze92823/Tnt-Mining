@@ -1,6 +1,7 @@
 import { useRef } from 'react'
 import { useFrame } from '@react-three/fiber'
 import { ADMIN_STAGE, FLOOR_TOP, PEDESTALS } from '../../data/world.js'
+import { compact } from '../../utils/compact.js'
 import { MAT, solid } from '../../materials/hub.js'
 import { Billboard, Block, Slab, TntBlock } from './Parts.jsx'
 
@@ -33,7 +34,7 @@ function Pedestal({ p }) {
         lines={[
           { text: p.name, size: 60, color: p.nameColor },
           { text: p.tagline, size: 54 },
-          { text: String(p.price), size: 54, color: '#5bff2a', icon: 'gem' },
+          { text: '$' + compact(p.price), size: 54, color: '#5bff2a', icon: 'cash' },
         ]}
       />
     </group>

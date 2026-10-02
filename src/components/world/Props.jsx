@@ -10,7 +10,7 @@ import { Billboard, Block } from './Parts.jsx'
 const baseY = (x, z) => (Math.abs(x) > GRASS_HALF || Math.abs(z) > GRASS_HALF ? FLOOR_TOP : 0)
 
 // Blocky tree: square trunk under two stacked, offset leaf cubes.
-function Tree({ x, z, seed }) {
+export function Tree({ x, z, seed }) {
   const y = baseY(x, z)
   const r = seededRandom(seed)
   const s = 0.9 + r() * 0.35

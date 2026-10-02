@@ -1,5 +1,5 @@
 import { useEffect, useReducer, useRef, useState } from 'react'
-import { touchState, subscribeTouchMode, setTouchMove, addTouchLook, addTouchZoom, pressTouchJump } from '../systems/input.js'
+import { touchState, subscribeTouchMode, setTouchMove, addTouchLook, addTouchZoom, pressTouchJump, pressTouchInteract, releaseTouchInteract } from '../systems/input.js'
 
 // On-screen controls for a touch session. DOM siblings of the canvas, like the
 // rest of the HUD: gestures write straight into the input singleton through
@@ -7,7 +7,7 @@ import { touchState, subscribeTouchMode, setTouchMove, addTouchLook, addTouchZoo
 //
 //   left  ~45% / lower ~58%  → floating movement stick
 //   right ~54%               → drag orbits the camera, pinch zooms
-//   bottom-right             → JUMP button
+//   bottom-right             → JUMP and E (hold) buttons
 
 const STICK_RADIUS = 54 // px of thumb travel that maps to full speed
 const DEAD_ZONE = 0.16
@@ -141,7 +141,7 @@ function MoveStick() {
   )
 }
 
-function ActionButton({ onPress, label, className }) {
+function ActionButton({ onPress, onRelease, label, className }) {
   const [down, setDown] = useState(false)
   return (
     <button
@@ -151,8 +151,14 @@ function ActionButton({ onPress, label, className }) {
         setDown(true)
         onPress()
       }}
-      onPointerUp={() => setDown(false)}
-      onPointerCancel={() => setDown(false)}
+      onPointerUp={() => {
+        setDown(false)
+        onRelease?.()
+      }}
+      onPointerCancel={() => {
+        setDown(false)
+        onRelease?.()
+      }}
       onContextMenu={(e) => e.preventDefault()}
       className={`touch-btn ${className}${down ? ' is-down' : ''}`}
     >
@@ -184,6 +190,7 @@ export default function TouchControls() {
       <LookZone />
       <MoveStick />
       <div className="touch-cluster">
+        <ActionButton onPress={pressTouchInteract} onRelease={releaseTouchInteract} label="E" className="touch-btn-small" />
         <ActionButton onPress={pressTouchJump} label="JUMP" className="touch-btn-big" />
       </div>
     </div>

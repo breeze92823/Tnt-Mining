@@ -7,7 +7,9 @@ import { DEV_MODE } from '../data/bloxity.js'
 import { applyProportions, attachEquippedAccessories } from '../systems/avatarLoader.js'
 import { buildDefaultCharacter, loadBaseCharacter } from '../systems/defaultCharacter.js'
 import { useGameStore } from '../store/useGameStore.js'
-import { makeGait, updateGait, disposeGait } from '../systems/avatarAnim.js'
+import { tntById } from '../data/tnts.js'
+import { createHeldItem } from '../systems/heldItem.js'
+import { makeGait, updateGait, disposeGait, setHolding } from '../systems/avatarAnim.js'
 
 const _up = new Vector3(0, 1, 0)
 const _targetQuat = new Quaternion()
@@ -75,6 +77,7 @@ export default function Player() {
   const ref = useRef()
   const avatar = useBloxityAvatar()
   const gaitRef = useRef(null)
+  const heldRef = useRef(null)
 
   // Rebuilt per loaded avatar — the gait's cached bind-pose quaternions
   // (see avatarAnim.js) belong to one specific rig instance.
@@ -83,7 +86,28 @@ export default function Player() {
     if (!avatar) return
     gaitRef.current = makeGait({ root: avatar, nodes: avatar.nodes || {}, clips: avatar.animations || [] })
 
+    // The selected inventory item (store.slot) is held in both hands.
+    const held = createHeldItem(avatar)
+    heldRef.current = held
+    let off = () => {}
+    if (held) {
+      // Nothing selected (slot null): the item is hidden and the arms hang free.
+      const apply = (slot) => {
+        held.select(slot)
+        setHolding(gaitRef.current, slot == null ? false : 'both')
+      }
+      apply(useGameStore.getState().slot)
+      held.tintTnt(tntById(useGameStore.getState().tntEquipped))
+      off = useGameStore.subscribe((s, prev) => {
+        if (s.slot !== prev.slot) apply(s.slot)
+        if (s.tntEquipped !== prev.tntEquipped) held.tintTnt(tntById(s.tntEquipped))
+      })
+    }
+
     return () => {
+      off()
+      if (held) held.dispose()
+      heldRef.current = null
       disposeGait(gaitRef.current)
       gaitRef.current = null
     }
@@ -96,6 +120,7 @@ export default function Player() {
     _targetQuat.setFromAxisAngle(_up, player.facing)
     g.quaternion.slerp(_targetQuat, 1 - Math.pow(TURN_RATE, delta))
 
+    if (heldRef.current) heldRef.current.update(gaitRef.current ? gaitRef.current.bend : 0)
     const gait = gaitRef.current
     if (gait) {
       const speed01 = Math.hypot(player.velocity.x, player.velocity.z) / player.moveSpeed

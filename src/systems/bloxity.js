@@ -186,7 +186,7 @@ export function init() {
     SDK.init(onLocalhost ? { gameSlug: GAME_SLUG, portalUrl: 'https://bloxity.io' } : { gameSlug: GAME_SLUG })
     authState.embedded = !!SDK.portal.isEmbeddedInLegion()
 
-    SDK.game.loadingStep('Loading Tnt Mining')
+    SDK.game.loadingStep('Loading +1 TNT Mining')
 
     registerSettings(SDK)
 

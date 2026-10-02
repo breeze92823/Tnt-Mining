@@ -1,12 +1,13 @@
 import { useMemo } from 'react'
-import { ADMIN_STAGE, FLOOR_TOP, GATE, GRASS_HALF, GROUND, LB_STAGE, PATH, PLAZA, TRAINING_PAD, WALL } from '../../data/world.js'
-import { MAT } from '../../materials/hub.js'
+import { ADMIN_STAGE, COLORS, FLOOR_TOP, GRASS_HALF, GROUND, LB_STAGE, NORTH, PATH, PLAZA, TRAINING_STAGE, WALL } from '../../data/world.js'
+import { MAT, solid } from '../../materials/hub.js'
 import { seededRandom } from '../../utils/random.js'
 import { Block, Slab } from './Parts.jsx'
 
 const G = GRASS_HALF
 const W = WALL.inner
 const HALF = GROUND.size / 2
+const NORTH_D = -NORTH.wallZ // north wall's inner distance from centre
 
 // Round plaza: grey stepped rim around a tiled disc.
 function Plaza() {
@@ -38,12 +39,13 @@ function Path({ axis, from, to, base = 0 }) {
   )
 }
 
-// Raised blue-grey floor ringing the grass, with a low lip step.
+// Raised blue-grey floor ringing the grass. The north band is grass up to
+// the checkered line; the field beyond it belongs to world/MineGate.jsx.
 function OuterFloor() {
   const t = FLOOR_TOP
   return (
     <group>
-      <Slab x0={-W} x1={W} z0={-W} z1={-G} y1={t} material={MAT.floor} />
+      <Slab x0={-W} x1={W} z0={NORTH.checkerZ} z1={-G} y1={t} material={solid(COLORS.grass, COLORS.grassDark)} />
       <Slab x0={-W} x1={W} z0={G} z1={W} y1={t} material={MAT.floor} />
       <Slab x0={-W} x1={-G} z0={-G} z1={G} y1={t} material={MAT.floor} />
       <Slab x0={G} x1={W} z0={-G} z1={G} y1={t} material={MAT.floor} />
@@ -65,7 +67,17 @@ function Walls() {
       for (let a = -end; a < end; a += SEG) {
         const inner = WALL.height + Math.floor(rand() * 2)
         const outer = WALL.outerHeight + Math.floor(rand() * 4)
-        out.push({ side, a0: a, a1: Math.min(a + SEG, end), inner, outer })
+        out.push({ side, a0: a, a1: Math.min(a + SEG, end), inner, outer, d: side === 'n' ? NORTH_D : W })
+      }
+    }
+    // The north wall stands back past the mine: extend the east/west walls up
+    // to it (own seed, so the original segments keep their heights).
+    const rand2 = seededRandom(57)
+    for (const side of ['w', 'e']) {
+      for (let a = -NORTH_D; a < -W; a += SEG) {
+        const inner = WALL.height + Math.floor(rand2() * 2)
+        const outer = WALL.outerHeight + Math.floor(rand2() * 4)
+        out.push({ side, a0: a, a1: Math.min(a + SEG, -W), inner, outer, d: W })
       }
     }
     return out
@@ -90,8 +102,8 @@ function Walls() {
     <group>
       {segments.map((s, i) => (
         <group key={i}>
-          {slab(s.side, s.a0, s.a1, W, W + WALL.thick, s.inner, 'i')}
-          {slab(s.side, s.a0, s.a1, W + WALL.thick, HALF, s.outer, 'o')}
+          {slab(s.side, s.a0, s.a1, s.d, s.d + WALL.thick, s.inner, 'i')}
+          {slab(s.side, s.a0, s.a1, s.d + WALL.thick, s.d + HALF - W, s.outer, 'o')}
         </group>
       ))}
     </group>
@@ -106,9 +118,9 @@ export default function Hub() {
       <Path axis="x" from={-G} to={G} />
       <OuterFloor />
       {/* paths continue across the raised floor toward each zone */}
-      <Path axis="z" from={-G} to={GATE.z + 2.5} base={FLOOR_TOP} />
+      <Path axis="z" from={-G} to={NORTH.checkerZ} base={FLOOR_TOP} />
       <Path axis="z" from={G} to={ADMIN_STAGE.z - ADMIN_STAGE.d / 2 - 1} base={FLOOR_TOP} />
-      <Path axis="x" from={-G} to={TRAINING_PAD.x + TRAINING_PAD.size / 2} base={FLOOR_TOP} />
+      <Path axis="x" from={-G} to={TRAINING_STAGE.x1} base={FLOOR_TOP} />
       <Path axis="x" from={G} to={LB_STAGE.x0 - 4} base={FLOOR_TOP} />
       <Walls />
     </group>

@@ -2,11 +2,21 @@ import { useEffect, useRef, useState } from 'react'
 import { settings } from '../systems/settingsState.js'
 import { useSettings } from '../systems/bloxityHooks.js'
 import { login, subscribeAuth } from '../systems/bloxity.js'
-import { openPanel, selectSlot, useGameStore } from '../store/useGameStore.js'
-import Panels from './hud/Panels.jsx'
+import { compact } from '../utils/compact.js'
+import { blastPower as blastPowerOf, levelFor, openPanel, playerLevel, rebirthLevelFor, selectSlot, useGameStore } from '../store/useGameStore.js'
+import { tntById } from '../data/tnts.js'
+import Panels, { visibleSlots } from './hud/Panels.jsx'
+import InteractPrompt from './hud/InteractPrompt.jsx'
+import ActionResult from './hud/ActionResult.jsx'
+import TutorialBanner from './hud/TutorialBanner.jsx'
+import CollectPopups from './hud/CollectPopups.jsx'
+import ActionPopups from './hud/ActionPopups.jsx'
+import { interactState } from '../systems/interact.js'
+import { interactHoldState } from '../systems/interactHold.js'
+import { actionResultState } from '../systems/actionResult.js'
 import {
-  BagIcon, BasketIcon, BurstIcon, CalendarIcon, CashIcon, DirtIcon, GearIcon, GemIcon, GiftIcon,
-  PickaxeIcon, PlusIcon, PotionIcon, RebirthIcon, ScrollIcon, ShellIcon, SparkleIcon, TeleportIcon, TntIcon,
+  BagIcon, BasketIcon, BurstIcon, CalendarIcon, CashIcon, DirtIcon, GiftIcon,
+  PickaxeIcon, RebirthIcon, SparkleIcon, TeleportIcon, TntIcon,
 } from './hud/icons.jsx'
 
 function FpsMeter() {
@@ -46,42 +56,16 @@ function LoginButton() {
 const Badge = () => <span className="hud-badge">!</span>
 
 function LevelBar() {
-  const level = useGameStore((s) => s.level)
-  const xp = useGameStore((s) => s.xp)
-  const xpMax = useGameStore((s) => s.xpMax)
+  const blastPower = useGameStore(blastPowerOf)
+  const { level, xp, need: xpMax } = levelFor(blastPower)
   return (
     <div className="hud-level">
       <div className="hud-level-track">
         <div className="hud-level-fill" style={{ width: `${(xp / xpMax) * 100}%` }} />
         <span className="hud-level-name">Level {level}</span>
-        <span className="hud-level-xp">{xp} / {xpMax}</span>
+        <span className="hud-level-xp">{compact(xp)} / {compact(xpMax)}</span>
       </div>
       <BurstIcon className="hud-level-icon" />
-    </div>
-  )
-}
-
-function TopRight() {
-  const boost = useGameStore((s) => s.friendBoost)
-  return (
-    <div className="hud-topright">
-      <div className="hud-topright-row">
-        <button type="button" className="hud-plus" onClick={() => openPanel('friends')} aria-label="Invite friends">
-          <PlusIcon />
-        </button>
-        <button type="button" className="hud-boost" onClick={() => openPanel('friends')}>
-          Friend Boost: +{boost}%
-        </button>
-      </div>
-      <div className="hud-topright-row hud-round-row">
-        <button type="button" className="hud-round" onClick={() => openPanel('quests')} aria-label="Quests">
-          <ScrollIcon />
-          <Badge />
-        </button>
-        <button type="button" className="hud-round" onClick={() => openPanel('settings')} aria-label="Settings">
-          <GearIcon />
-        </button>
-      </div>
     </div>
   )
 }
@@ -98,12 +82,12 @@ function MenuCard({ id, title, tone, Icon, badge, corner }) {
 }
 
 function LeftMenu() {
-  const progress = useGameStore((s) => s.rebirthProgress)
+  const progress = useGameStore((s) => Math.min(100, Math.floor((playerLevel(s) / rebirthLevelFor(s.rebirths)) * 100)))
   return (
     <div className="hud-menu">
-      <MenuCard id="shop" title="Shop" tone="orange" Icon={BasketIcon} badge />
+      {/* TEMP disabled: Shop */}
       <MenuCard id="bag" title="Bag" tone="orange" Icon={BagIcon} />
-      <MenuCard id="daily" title="Daily" tone="purple" Icon={CalendarIcon} badge />
+      {/* TEMP disabled: Daily reward */}
       <MenuCard id="rebirth" title="Rebirth" tone="purple" Icon={RebirthIcon} corner={`${progress}%`} />
       <button type="button" className="hud-teleport" onClick={() => openPanel('teleport')}>
         <TeleportIcon className="hud-teleport-icon" />
@@ -118,9 +102,8 @@ const fmt = (n) => n.toLocaleString('en-US')
 function Stats() {
   const s = useGameStore()
   const rows = [
-    { Icon: BurstIcon, text: fmt(s.explosions), cls: 'boom' },
+    { Icon: BurstIcon, text: fmt(blastPowerOf(s)), cls: 'boom' },
     { Icon: CashIcon, text: `$${fmt(s.money)}`, cls: 'cash' },
-    { Icon: ShellIcon, text: `x${fmt(s.shells)}`, cls: 'shell' },
     { Icon: RebirthIcon, text: fmt(s.rebirths), cls: 'rebirth' },
   ]
   return (
@@ -138,35 +121,35 @@ function Stats() {
 function RightOffers() {
   return (
     <div className="hud-offers">
-      <button type="button" className="hud-offer hud-offer-potion" onClick={() => openPanel('potion')}>
-        <span className="hud-offer-title hud-offer-sale">90% OFF</span>
-        <PotionIcon className="hud-offer-icon" />
-        <span className="hud-offer-price">
-          <GemIcon className="hud-offer-gem" />2
-        </span>
-      </button>
+      {/* TEMP disabled: Gift offer
       <button type="button" className="hud-offer hud-offer-gift" onClick={() => openPanel('gift')}>
         <span className="hud-offer-title">FREE!</span>
         <GiftIcon className="hud-offer-icon" />
       </button>
+      */}
     </div>
   )
 }
 
-const HOTBAR = [
-  { Icon: TntIcon, count: 5, enchanted: true },
-  { Icon: PickaxeIcon },
-  { Icon: DirtIcon, count: 141 },
-]
-
 function Hotbar() {
   const slot = useGameStore((s) => s.slot)
   const [done, total] = useGameStore((s) => s.enchanted)
+  const stocks = useGameStore()
+  const equipped = tntById(stocks.tntEquipped)
+
+  const shown = visibleSlots(stocks)
+  const shownRef = useRef(shown)
+  shownRef.current = shown
+
+  // An ore slot that empties (sold) disappears; drop the selection so nothing hidden stays held.
+  useEffect(() => {
+    if (slot !== null && !shown.some((it) => it.i === slot)) useGameStore.setState({ slot: null })
+  }, [slot, shown])
 
   useEffect(() => {
     const onKey = (e) => {
-      const n = ['Digit1', 'Digit2', 'Digit3'].indexOf(e.code)
-      if (n >= 0) selectSlot(n)
+      const n = shownRef.current.findIndex((_, p) => e.code === `Digit${p + 1}`)
+      if (n >= 0) selectSlot(shownRef.current[n].i)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -178,34 +161,66 @@ function Hotbar() {
         {done}/{total} Enchanted
       </div>
       <div className="hud-hotbar">
-        {HOTBAR.map(({ Icon, count, enchanted }, i) => (
+        {shown.map(({ name, Icon, count: base, enchanted, stock, i }, p) => {
+          const count = stock ? stocks[stock] : base
+          return (
           <button
             key={i}
             type="button"
             className={`hud-slot${slot === i ? ' is-selected' : ''}`}
-            onClick={() => selectSlot(i)}
+            aria-label={stock === 'tnt' ? `${equipped.name} TNT` : name}
+            aria-pressed={slot === i}
+            onClick={(e) => { selectSlot(i); e.currentTarget.blur() }}
           >
-            <span className="hud-slot-num">{i + 1}</span>
-            <Icon className="hud-slot-icon" />
+            <span className="hud-slot-num">{p + 1}</span>
+            <Icon className="hud-slot-icon" {...(stock === 'tnt' && equipped)} />
             {enchanted && <SparkleIcon className="hud-slot-sparkle" />}
-            {count !== undefined && <span className="hud-slot-count">x{count}</span>}
+            {count !== undefined && <span className="hud-slot-count">x{compact(count)}</span>}
           </button>
-        ))}
+          )
+        })}
       </div>
     </div>
   )
 }
 
+// The E prompt and the result popup are written imperatively from a ~10Hz poll
+// of the framework-free singletons (never per-frame React renders). See Interact.md.
+function useInteractHud(promptRef, resultRef) {
+  useEffect(() => {
+    let lastId = actionResultState.id
+    const id = setInterval(() => {
+      const prompt = promptRef.current
+      if (prompt) {
+        prompt.setText(interactState.label)
+        prompt.setHoldProgress(interactHoldState.progress)
+      }
+      if (actionResultState.id !== lastId) {
+        lastId = actionResultState.id
+        resultRef.current?.show(actionResultState.text, actionResultState.success)
+      }
+    }, 100)
+    return () => clearInterval(id)
+  }, [promptRef, resultRef])
+}
+
 export default function Hud() {
   useSettings()
+  const promptRef = useRef(null)
+  const resultRef = useRef(null)
+  useInteractHud(promptRef, resultRef)
   return (
     <div className="hud">
       <LevelBar />
-      <TopRight />
       <LeftMenu />
       <Stats />
       <RightOffers />
       <Hotbar />
+      <InteractPrompt ref={promptRef} />
+      <ActionResult ref={resultRef} />
+      <TutorialBanner />
+      <CollectPopups />
+      <ActionPopups />
       <LoginButton />
       {settings.show_fps && <FpsMeter />}
       <Panels />
