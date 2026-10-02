@@ -187,6 +187,14 @@ export const DirtIcon = (p) => (
   </Svg>
 )
 
+// A cube in an ore's colours (data/ores.js base/edge), with its fleck as a gem dot.
+export const OreIcon = ({ base, edge, fleck, ...p }) => (
+  <Svg {...p}>
+    <IsoCube top={base} left={edge} right={base} />
+    {fleck && <circle cx="50" cy="52" r="9" fill={fleck} stroke={INK} strokeWidth="3" />}
+  </Svg>
+)
+
 export const PickaxeIcon = (p) => (
   <Svg {...p}>
     <rect x="44" y="30" width="12" height="64" rx="4" transform="rotate(35 50 60)" fill="#7a5a3a" stroke={INK} strokeWidth="4" />

@@ -9,7 +9,7 @@ import { stepPickups } from '../systems/pickups.js'
 import { step as stepInteract } from '../systems/interact.js'
 import { spawnActionPopup, step as stepActionPopups } from '../systems/actionPopups.js'
 import { player, playerScreen } from '../systems/playerState.js'
-import { TARGETS } from '../data/world.js'
+import { HUB_WALL, TARGETS } from '../data/world.js'
 import { placeTrainingTnt, stepTrainingTnt } from '../systems/trainingTnt.js'
 import { playFuse } from '../systems/sfx.js'
 import { Vector3 } from 'three'
@@ -77,6 +77,7 @@ export default function GameLoop() {
     let lastGain = -Infinity
     const onDown = (e) => {
       if (e.button !== 0) return
+      if (player.position.z < HUB_WALL.z0) return // no click power in the Forest Mine
       const now = performance.now()
       if (now - lastGain < CLICK_COOLDOWN_MS) return
       lastGain = now

@@ -8,7 +8,7 @@ import { syncYawToPlayer } from '../../systems/cameraOrbit.js'
 import { setSetting, settings } from '../../systems/settingsState.js'
 import { useSettings } from '../../systems/bloxityHooks.js'
 import {
-  BagIcon, BasketIcon, BoltIcon, BurstIcon, CalendarIcon, CashIcon, DirtIcon, GearIcon, GemIcon, GiftIcon, MagnetIcon,
+  BagIcon, BasketIcon, BoltIcon, BurstIcon, CalendarIcon, CashIcon, DirtIcon, OreIcon, GearIcon, GemIcon, GiftIcon, MagnetIcon,
   PickaxeIcon, PlusIcon, PotionIcon, RebirthIcon, ScrollIcon, TeleportIcon, TntIcon, UpgradeIcon,
 } from './icons.jsx'
 
@@ -77,18 +77,22 @@ const ShopPrice = ({ price }) => (
 export const INVENTORY = [
   { name: 'TNT', count: 5, Icon: TntIcon, enchanted: true, stock: 'tnt' }, // `stock`: live count key in the game store,
   { name: 'Pickaxe', Icon: PickaxeIcon },
-  { name: 'Dirt', count: 141, Icon: DirtIcon, stock: 'dirt' },
+  // One slot per ore item (Dirt, Stone, Coal, Gold, Diamond, Bedrock), counted live in the store.
+  ...ORES.map((o) => ({ name: o.itemName, Icon: (p) => <OreIcon base={o.base} edge={o.edge} fleck={o.fleck} {...p} />, stock: o.item, hideEmpty: true })),
 ]
+
+// The inventory entries to show, each with its slot index (the store's `slot`, held-item model):
+// ore blocks are hidden while their count is 0.
+export const visibleSlots = (stocks) =>
+  INVENTORY.map((item, i) => ({ ...item, i })).filter((it) => !it.hideEmpty || stocks[it.stock] > 0)
 
 function Bag() {
   const slot = useGameStore((s) => s.slot)
-  const tnt = useGameStore((s) => s.tnt)
-  const dirt = useGameStore((s) => s.dirt)
-  const stocks = { tnt, dirt }
+  const stocks = useGameStore()
   const equipped = tntById(useGameStore((s) => s.tntEquipped))
   return (
     <div className="panel-grid">
-      {INVENTORY.map(({ name, count: base, stock, Icon }, i) => {
+      {visibleSlots(stocks).map(({ name, count: base, stock, Icon, i }) => {
         const count = stock ? stocks[stock] : base
         return (
         <button
@@ -194,7 +198,7 @@ function Upgrades() {
 }
 
 // Sellable blocks: `stock` is the store count key, `price` the cash per block.
-const SELLABLE = ORES.map((o) => ({ stock: o.item, name: o.itemName, rarity: o.name, price: o.price, Icon: DirtIcon }))
+const SELLABLE = ORES.map((o) => ({ stock: o.item, name: o.itemName, rarity: o.name, price: o.price, Icon: (p) => <OreIcon base={o.base} edge={o.edge} fleck={o.fleck} {...p} /> }))
 
 function Sell() {
   const state = useGameStore()
@@ -204,7 +208,7 @@ function Sell() {
   return (
     <div className="panel-list">
       <div className="sell-total">
-        <b>+${total.toLocaleString('en-US')}</b>
+        <b>+{money(total)}</b>
         <button
           type="button"
           className={`panel-btn${total ? '' : ' is-muted'}`}
@@ -222,9 +226,9 @@ function Sell() {
             <span className="tnt-rarity">{rarity}</span>
           </div>
           <div className="sell-side">
-            <span>x{state[stock]}</span>
+            <span>x{short(state[stock])}</span>
             <button type="button" className="panel-btn" onClick={() => sellBlocks([{ stock, price }])}>
-              +${Math.round(state[stock] * price * mult).toLocaleString('en-US')}
+              +{money(Math.round(state[stock] * price * mult))}
             </button>
           </div>
         </div>

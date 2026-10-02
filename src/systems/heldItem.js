@@ -7,6 +7,7 @@ import {
   BoxGeometry, CylinderGeometry, Group, Mesh, MeshStandardMaterial,
 } from 'three'
 import { bothHandsLayout } from './avatarAnim.js'
+import { ORES } from '../data/ores.js'
 
 
 const mat = (color, extra) => new MeshStandardMaterial({ color, roughness: 0.8, metalness: 0, ...extra })
@@ -48,13 +49,14 @@ const BUILDERS = [
     g.add(box(0.3, 0.5, 0.34, mat('#6d7279'), -1.0, 1.55, 0))
     return g
   },
-  // Dirt block.
-  () => {
+  // One block per ore item, in ORES order: Dirt (with a grass cap), then plain blocks in the ore's colour.
+  ...ORES.map((o) => () => {
     const g = new Group()
-    g.add(box(1.2, 1.2, 1.2, mat('#7a4e2a'), 0, 0.5, 0))
-    g.add(box(1.24, 0.28, 1.24, mat('#4fae3a'), 0, 1.0, 0))
+    g.add(box(1.2, 1.2, 1.2, mat(o.item === 'dirt' ? '#7a4e2a' : o.base), 0, 0.5, 0))
+    if (o.item === 'dirt') g.add(box(1.24, 0.28, 1.24, mat('#4fae3a'), 0, 1.0, 0))
+    else if (o.fleck) g.add(box(0.5, 0.5, 1.26, mat(o.fleck), 0, 0.5, 0))
     return g
-  },
+  }),
 ]
 
 // Attach to the rig's chest (Spine2), centred between the two hands. Returns

@@ -5,7 +5,7 @@ import { login, subscribeAuth } from '../systems/bloxity.js'
 import { compact } from '../utils/compact.js'
 import { blastPower as blastPowerOf, levelFor, openPanel, playerLevel, rebirthLevelFor, selectSlot, useGameStore } from '../store/useGameStore.js'
 import { tntById } from '../data/tnts.js'
-import Panels, { INVENTORY } from './hud/Panels.jsx'
+import Panels, { visibleSlots } from './hud/Panels.jsx'
 import InteractPrompt from './hud/InteractPrompt.jsx'
 import ActionResult from './hud/ActionResult.jsx'
 import CollectPopups from './hud/CollectPopups.jsx'
@@ -84,9 +84,9 @@ function LeftMenu() {
   const progress = useGameStore((s) => Math.min(100, Math.floor((playerLevel(s) / rebirthLevelFor(s.rebirths)) * 100)))
   return (
     <div className="hud-menu">
-      <MenuCard id="shop" title="Shop" tone="orange" Icon={BasketIcon} />
+      {/* TEMP disabled: Shop */}
       <MenuCard id="bag" title="Bag" tone="orange" Icon={BagIcon} />
-      <MenuCard id="daily" title="Daily" tone="purple" Icon={CalendarIcon} />
+      {/* TEMP disabled: Daily reward */}
       <MenuCard id="rebirth" title="Rebirth" tone="purple" Icon={RebirthIcon} corner={`${progress}%`} />
       <button type="button" className="hud-teleport" onClick={() => openPanel('teleport')}>
         <TeleportIcon className="hud-teleport-icon" />
@@ -120,10 +120,12 @@ function Stats() {
 function RightOffers() {
   return (
     <div className="hud-offers">
+      {/* TEMP disabled: Gift offer
       <button type="button" className="hud-offer hud-offer-gift" onClick={() => openPanel('gift')}>
         <span className="hud-offer-title">FREE!</span>
         <GiftIcon className="hud-offer-icon" />
       </button>
+      */}
     </div>
   )
 }
@@ -131,15 +133,22 @@ function RightOffers() {
 function Hotbar() {
   const slot = useGameStore((s) => s.slot)
   const [done, total] = useGameStore((s) => s.enchanted)
-  const tnt = useGameStore((s) => s.tnt)
-  const dirt = useGameStore((s) => s.dirt)
-  const stocks = { tnt, dirt }
-  const equipped = tntById(useGameStore((s) => s.tntEquipped))
+  const stocks = useGameStore()
+  const equipped = tntById(stocks.tntEquipped)
+
+  const shown = visibleSlots(stocks)
+  const shownRef = useRef(shown)
+  shownRef.current = shown
+
+  // An ore slot that empties (sold) disappears; drop the selection so nothing hidden stays held.
+  useEffect(() => {
+    if (slot !== null && !shown.some((it) => it.i === slot)) useGameStore.setState({ slot: null })
+  }, [slot, shown])
 
   useEffect(() => {
     const onKey = (e) => {
-      const n = INVENTORY.findIndex((_, i) => e.code === `Digit${i + 1}`)
-      if (n >= 0) selectSlot(n)
+      const n = shownRef.current.findIndex((_, p) => e.code === `Digit${p + 1}`)
+      if (n >= 0) selectSlot(shownRef.current[n].i)
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -151,7 +160,7 @@ function Hotbar() {
         {done}/{total} Enchanted
       </div>
       <div className="hud-hotbar">
-        {INVENTORY.map(({ name, Icon, count: base, enchanted, stock }, i) => {
+        {shown.map(({ name, Icon, count: base, enchanted, stock, i }, p) => {
           const count = stock ? stocks[stock] : base
           return (
           <button
@@ -162,7 +171,7 @@ function Hotbar() {
             aria-pressed={slot === i}
             onClick={(e) => { selectSlot(i); e.currentTarget.blur() }}
           >
-            <span className="hud-slot-num">{i + 1}</span>
+            <span className="hud-slot-num">{p + 1}</span>
             <Icon className="hud-slot-icon" {...(stock === 'tnt' && equipped)} />
             {enchanted && <SparkleIcon className="hud-slot-sparkle" />}
             {count !== undefined && <span className="hud-slot-count">x{compact(count)}</span>}

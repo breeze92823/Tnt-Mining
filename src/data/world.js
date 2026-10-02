@@ -58,9 +58,9 @@ export const STALL_SCALE = 1.3
 
 // Premium TNT on pedestals along the south edge.
 export const PEDESTALS = [
-  { id: 'corrupt', name: 'Corrupt TNT', tagline: 'Big Explosion!', price: 69, color: '#ffd400', nameColor: '#ffd23a', x: 10, z: 27 },
-  { id: 'admin', name: 'Admin TNT', tagline: 'Massive Explosion!', price: 449, color: '#e01b24', nameColor: '#ff3b3b', x: 0, z: 30 },
-  { id: 'atomic', name: 'Atomic TNT', tagline: 'Huge Explosion!', price: 205, color: '#7ee81e', nameColor: '#5bff2a', x: -10, z: 27 },
+  { id: 'corrupt', name: 'Corrupt TNT', tagline: 'Big Explosion!', price: 2e9, color: '#ffd400', nameColor: '#ffd23a', x: 10, z: 27 },
+  { id: 'admin', name: 'Admin TNT', tagline: 'Massive Explosion!', price: 500e6, color: '#e01b24', nameColor: '#ff3b3b', x: 0, z: 30 },
+  { id: 'atomic', name: 'Atomic TNT', tagline: 'Huge Explosion!', price: 3e9, color: '#7ee81e', nameColor: '#5bff2a', x: -10, z: 27 },
 ]
 export const ADMIN_STAGE = { x: 0, z: 30, w: 9, d: 6.5, top: 1.0 }
 
