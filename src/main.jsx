@@ -1,0 +1,32 @@
+import React from 'react'
+import { createRoot } from 'react-dom/client'
+import './index.css'
+import './hud.css'
+import App from './App.jsx'
+import { install as installInput } from './systems/input.js'
+import { install as installAudio } from './systems/audio.js'
+import { player, resetPlayer } from './systems/playerState.js'
+import { setView, syncYawToPlayer } from './systems/cameraOrbit.js'
+import { SPAWN, SPAWN_FACING } from './data/world.js'
+import { init as initBloxity } from './systems/bloxity.js'
+
+initBloxity()
+resetPlayer(SPAWN, SPAWN_FACING)
+syncYawToPlayer()
+installInput()
+installAudio() // unlocks the AudioContext on the first gesture
+
+// Dev-only console hook, e.g. __game.teleport(0, 0, -5)
+if (import.meta.env.DEV) {
+  window.__game = {
+    player,
+    setView,
+    teleport: (x, y, z, facing = player.facing) => resetPlayer({ x, y, z }, facing),
+  }
+}
+
+createRoot(document.getElementById('root')).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>,
+)
