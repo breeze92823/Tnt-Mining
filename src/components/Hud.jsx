@@ -3,7 +3,12 @@ import { settings } from '../systems/settingsState.js'
 import { useSettings } from '../systems/bloxityHooks.js'
 import { login, subscribeAuth } from '../systems/bloxity.js'
 import { openPanel, selectSlot, useGameStore } from '../store/useGameStore.js'
-import Panels from './hud/Panels.jsx'
+import Panels, { INVENTORY } from './hud/Panels.jsx'
+import InteractPrompt from './hud/InteractPrompt.jsx'
+import ActionResult from './hud/ActionResult.jsx'
+import { interactState } from '../systems/interact.js'
+import { interactHoldState } from '../systems/interactHold.js'
+import { actionResultState } from '../systems/actionResult.js'
 import {
   BagIcon, BasketIcon, BurstIcon, CalendarIcon, CashIcon, DirtIcon, GearIcon, GemIcon, GiftIcon,
   PickaxeIcon, PlusIcon, PotionIcon, RebirthIcon, ScrollIcon, ShellIcon, SparkleIcon, TeleportIcon, TntIcon,
@@ -153,19 +158,14 @@ function RightOffers() {
   )
 }
 
-const HOTBAR = [
-  { Icon: TntIcon, count: 5, enchanted: true },
-  { Icon: PickaxeIcon },
-  { Icon: DirtIcon, count: 141 },
-]
-
 function Hotbar() {
   const slot = useGameStore((s) => s.slot)
   const [done, total] = useGameStore((s) => s.enchanted)
+  const tnt = useGameStore((s) => s.tnt)
 
   useEffect(() => {
     const onKey = (e) => {
-      const n = ['Digit1', 'Digit2', 'Digit3'].indexOf(e.code)
+      const n = INVENTORY.findIndex((_, i) => e.code === `Digit${i + 1}`)
       if (n >= 0) selectSlot(n)
     }
     window.addEventListener('keydown', onKey)
@@ -178,26 +178,54 @@ function Hotbar() {
         {done}/{total} Enchanted
       </div>
       <div className="hud-hotbar">
-        {HOTBAR.map(({ Icon, count, enchanted }, i) => (
+        {INVENTORY.map(({ name, Icon, count: base, enchanted, stock }, i) => {
+          const count = stock === 'tnt' ? tnt : base
+          return (
           <button
             key={i}
             type="button"
             className={`hud-slot${slot === i ? ' is-selected' : ''}`}
-            onClick={() => selectSlot(i)}
+            aria-label={name}
+            aria-pressed={slot === i}
+            onClick={(e) => { selectSlot(i); e.currentTarget.blur() }}
           >
             <span className="hud-slot-num">{i + 1}</span>
             <Icon className="hud-slot-icon" />
             {enchanted && <SparkleIcon className="hud-slot-sparkle" />}
             {count !== undefined && <span className="hud-slot-count">x{count}</span>}
           </button>
-        ))}
+          )
+        })}
       </div>
     </div>
   )
 }
 
+// The E prompt and the result popup are written imperatively from a ~10Hz poll
+// of the framework-free singletons (never per-frame React renders). See Interact.md.
+function useInteractHud(promptRef, resultRef) {
+  useEffect(() => {
+    let lastId = actionResultState.id
+    const id = setInterval(() => {
+      const prompt = promptRef.current
+      if (prompt) {
+        prompt.setText(interactState.label)
+        prompt.setHoldProgress(interactHoldState.progress)
+      }
+      if (actionResultState.id !== lastId) {
+        lastId = actionResultState.id
+        resultRef.current?.show(actionResultState.text, actionResultState.success)
+      }
+    }, 100)
+    return () => clearInterval(id)
+  }, [promptRef, resultRef])
+}
+
 export default function Hud() {
   useSettings()
+  const promptRef = useRef(null)
+  const resultRef = useRef(null)
+  useInteractHud(promptRef, resultRef)
   return (
     <div className="hud">
       <LevelBar />
@@ -206,6 +234,8 @@ export default function Hud() {
       <Stats />
       <RightOffers />
       <Hotbar />
+      <InteractPrompt ref={promptRef} />
+      <ActionResult ref={resultRef} />
       <LoginButton />
       {settings.show_fps && <FpsMeter />}
       <Panels />

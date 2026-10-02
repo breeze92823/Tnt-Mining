@@ -1,4 +1,5 @@
 import { showMenu } from './bloxity.js'
+import { INTERACT_KEY } from '../data/interact.js'
 
 // inputState: WASD/arrow move (camera-relative, consumed by playerMovement),
 // a right-drag look delta + wheel zoom (consumed by cameraOrbit), and
@@ -8,6 +9,7 @@ export const inputState = {
   look: { dx: 0, dy: 0 }, // pixels dragged this frame; consumed by cameraOrbit
   zoom: 0, // wheel delta this frame; consumed by cameraOrbit
   jump: false,
+  interact: false, // edge-triggered on INTERACT_KEY keydown; one-shot, cleared by GameLoop each frame
 }
 
 // Touch sessions have no keyboard or mouse: components/TouchControls.jsx drives
@@ -48,6 +50,19 @@ export function pressTouchJump() {
   inputState.jump = true // consumed + cleared next frame by playerMovement
 }
 
+// Continuous "is the interact key down" for the touch E button, separate from
+// inputState.interact's one-shot edge flag — the hold gate cares how long.
+export const touchInteractState = { down: false }
+
+export function pressTouchInteract() {
+  touchInteractState.down = true
+  inputState.interact = true
+}
+
+export function releaseTouchInteract() {
+  touchInteractState.down = false
+}
+
 const held = new Set()
 let orbiting = false
 let installed = false
@@ -67,6 +82,7 @@ function onKeyDown(e) {
   if (e.repeat) return
   held.add(e.code)
   if (e.code === 'Space') inputState.jump = true
+  if (e.code === INTERACT_KEY) inputState.interact = true
   if (e.code === 'Escape') showMenu() // opens the portal's own pause menu
   recomputeMove()
 }
@@ -106,9 +122,17 @@ function onBlur() {
   held.clear()
   orbiting = false
   inputState.jump = false
+  inputState.interact = false
+  touchInteractState.down = false
   inputState.move.x = 0
   inputState.move.z = 0
   recomputeMove()
+}
+
+// Keyboard hold (`held` tracks the key between keydown and keyup) OR the touch
+// E button currently pressed. See systems/interact.js.
+export function isInteractKeyDown() {
+  return held.has(INTERACT_KEY) || touchInteractState.down
 }
 
 export function install() {

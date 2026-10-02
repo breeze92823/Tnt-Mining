@@ -1,11 +1,13 @@
 import { COLLIDERS, GROUND_Y, WORLD_BOUNDS } from '../data/world.js'
+import { mineFloorAt } from './mineCubes.js'
 
 // Floor height under (x, z): the highest collider covering the point (see
 // COLLIDERS in data/world.js), else the bare ground. playerMovement and the
 // camera boom clamp both go through here; colliders taller than the player's
 // step height act as walls.
 export function terrainHeightAt(x, z) {
-  let h = GROUND_Y
+  // Inside the Forest Mine the base is the cube grid, not the bare ground.
+  let h = mineFloorAt(x, z) ?? GROUND_Y
   for (let i = 0; i < COLLIDERS.length; i++) {
     const c = COLLIDERS[i]
     if (c.top <= h) continue

@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { ADMIN_STAGE, COLORS, FLOOR_TOP, GRASS_HALF, GROUND, LB_STAGE, NORTH, PATH, PLAZA, TRAINING_PAD, WALL } from '../../data/world.js'
+import { ADMIN_STAGE, COLORS, FLOOR_TOP, GRASS_HALF, GROUND, LB_STAGE, NORTH, PATH, PLAZA, TRAINING_STAGE, WALL } from '../../data/world.js'
 import { MAT, solid } from '../../materials/hub.js'
 import { seededRandom } from '../../utils/random.js'
 import { Block, Slab } from './Parts.jsx'
@@ -120,7 +120,7 @@ export default function Hub() {
       {/* paths continue across the raised floor toward each zone */}
       <Path axis="z" from={-G} to={NORTH.checkerZ} base={FLOOR_TOP} />
       <Path axis="z" from={G} to={ADMIN_STAGE.z - ADMIN_STAGE.d / 2 - 1} base={FLOOR_TOP} />
-      <Path axis="x" from={-G} to={TRAINING_PAD.x + TRAINING_PAD.size / 2} base={FLOOR_TOP} />
+      <Path axis="x" from={-G} to={TRAINING_STAGE.x1} base={FLOOR_TOP} />
       <Path axis="x" from={G} to={LB_STAGE.x0 - 4} base={FLOOR_TOP} />
       <Walls />
     </group>

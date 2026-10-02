@@ -15,10 +15,12 @@ export const useGameStore = create(() => ({
   rebirthProgress: 33, // % toward the next rebirth
   enchanted: [15, 15],
   friendBoost: 0,
-  slot: 0, // selected hotbar slot
+  tnt: 5, // Green TNT in the inventory (hotbar slot 0)
+  slot: 0, // selected hotbar slot, or null when nothing is held
   panel: null, // open HUD panel id, or null
 }))
 
 export const openPanel = (panel) => useGameStore.setState((s) => ({ panel: s.panel === panel ? null : panel }))
 export const closePanel = () => useGameStore.setState({ panel: null })
-export const selectSlot = (slot) => useGameStore.setState({ slot })
+// Selecting the selected slot again deselects it (slot null = hands free).
+export const selectSlot = (slot) => useGameStore.setState((s) => ({ slot: s.slot === slot ? null : slot }))

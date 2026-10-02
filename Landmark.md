@@ -10,8 +10,8 @@ Every name in this file, by area. The sections below give positions and code loc
 
 - **Centre:** Spawn, Plaza, Paths, Raised Floor, Walls
 - **Stalls:** TNT Stall, SELL Stall, SHOP Stall, UPGRADE Stall
-- **North:** Hub Wall, Hub Gate, Start Line, North Field, Mine Arch, Desert Sign, Explosions Board, Secrets Board, Luck Board, Deep Block Board, Mine Fence, Desert Mine, North Trees, North Bushes
-- **West:** Training Banner, Training Pad, Seating, Wood / Stone / Snow / Crystal / Ruby / Emerald / Gold Target
+- **North:** Hub Wall, Hub Gate, Start Line, North Field, Mine Arch, Forest Sign, Explosions Board, Secrets Board, Luck Board, Deep Block Board, Mine Fence, Forest Mine, Placed TNT, North Trees, North Bushes
+- **West:** Training Banner, Training Stage, Seating, Wood / Stone / Snow / Emerald / Sand / Amethyst / Crystal / Lava / Ruby Target
 - **East:** Leaderboards Banner, Leaderboard Stage, Damage Board, Rebirths Board, Money Board
 - **South:** Corrupt TNT, Admin TNT, Atomic TNT, Admin Stage
 - **Props:** Index, Feedback Mailbox, Trees
@@ -23,11 +23,11 @@ The sketch is not to scale; use the coordinates in the tables.
 
 ```
                         NORTH (-Z)
-                 North Wall (z = -76)
-          ┌──────── Desert Mine ────────┐
+                 North Wall (z = -76), Forest Sign on it (0,-75.6)
+          ┌──────── Forest Mine ────────┐
           │  orange floor, fenced       │
           │  x -26..26, z -68..-42      │
-          └──────── Mine Arch (0,-42) ──┘   Desert Sign above it
+          └──────── Mine Arch (0,-42) ──┘
    Explosions  Secrets            Luck   Deep Block   (signboards)
    (-14,-37.6) (-8,-38.8)    (8,-38.8)  (14,-37.6)
              North Field (bright green)
@@ -73,9 +73,9 @@ All four face the plaza. Code: [Stalls.jsx](src/components/world/Stalls.jsx), da
 | **SHOP Stall** | 12, 12 | yellow / white | SHOP |
 | **UPGRADE Stall** | -12, 12 | cream / white | UPGRADE |
 
-## North: Desert Mine
+## North: Forest Mine
 
-Everything past the Start Line. Code: [MineGate.jsx](src/components/world/MineGate.jsx), data: `NORTH`, `GATE`, `DESERT_SIGN`, `INFO_BOARDS` and `NORTH_TREES` in world.js.
+Everything past the Start Line. Code: [MineGate.jsx](src/components/world/MineGate.jsx), data: `NORTH`, `GATE`, `FOREST_SIGN`, `INFO_BOARDS` and `NORTH_TREES` in world.js.
 
 | Name | Position (x, z) | What it is |
 |---|---|---|
@@ -84,14 +84,15 @@ Everything past the Start Line. Code: [MineGate.jsx](src/components/world/MineGa
 | **Start Line** | z -29 to -27, full width | Black-and-white checkered strip where the hub ends |
 | **North Field** | z -76 to -29 | Bright-green studded grass around the mine |
 | **Mine Arch** | 0, -42 | Two studded wooden pillars (at x ±3.6, 8.4 m tall) and a header board reading "Mine"; the way into the mine. The only gap in the fence |
-| **Desert Sign** | 0, -43.4 | Tall black board (11 m wide, 6.8 to 13.6 m up) on two legs behind the arch: "Desert" and a green **$12M** price bar |
+| **Forest Sign** | 0, -75.6 | Tall black board (11 m wide, 6.8 to 13.6 m up) hung on the North Wall, facing the plaza: "Forest" and a green **$12M** price bar |
 | **Explosions Board** | -14, -37.6 | Wooden signboard: "More Damage = Bigger Explosions" |
 | **Secrets Board** | -8, -38.8 | Purple signboard: "Secrets spawn in 21m 50s" with a **Track It!** button |
 | **Luck Board** | 8, -38.8 | Green signboard with a clover: "Mine Luck 1x ▸ 1.2x" with a **$4K** button |
 | **Deep Block Board** | 14, -37.6 | Wooden signboard: "Deeper = Tougher Blocks" |
-| **Mine Fence** | around the Desert Mine | Wooden posts and two rails on all four sides; the only gap is the Mine Arch. Code: `MineFence` in MineGate.jsx, solid via `fenceColliders` in world.js |
-| **Desert Mine** | x -26 to 26, z -68 to -42 | Fenced orange-tiled floor behind the arch |
-| **North Trees** | list in `NORTH_TREES` in world.js | Nine trees: two on each side of the mine and a row along the north wall |
+| **Mine Fence** | around the Forest Mine | Wooden posts and two rails on all four sides; the only gap is the Mine Arch. Code: `MineFence` in MineGate.jsx, solid via `fenceColliders` in world.js |
+| **Forest Mine** | x -26 to 26, z -68 to -42 | Fenced floor behind the arch: a 26 × 13 grid of columns, each 8 layers (16 m) of separate 2 m orange cubes (`MINE_CUBES` in world.js, state in [mineCubes.js](src/systems/mineCubes.js)). Removing a cube digs the top layer of its column (floor drops 2 m); dug cubes stay gone until the player is back in the hub (south of the Hub Wall), then the whole mine refills |
+| **Placed TNT** | on a Forest Mine cube | A 2 m Green TNT block the player puts on top of a floor cube: hold TNT (hotbar slot 1) in the mine, aim with the mouse (the ghost cube shows the target: the cube pointed at if within 3 m of the player, else the nearest one in range), left-click to place; costs 1 TNT, one per cube, can go on the cube the player stands on, removed with its cube. Not solid: the player walks through it. Code: `PlacedTnt` and the `TntPreview` ghost in MineGate.jsx, `placeTnt` in mineCubes.js |
+| **North Trees** | list in `NORTH_TREES` in world.js | Eight trees: two on each side of the mine and a row along the north wall (none in front of the Forest Sign) |
 | **North Bushes** | list in `BUSHES` in MineGate.jsx | Six low bushes around the fence (decoration, not solid) |
 
 ### North details
@@ -108,10 +109,9 @@ Exact numbers for each north landmark (heights are measured from the raised floo
 - Colour: brown wood `#9c5a2a`, studded.
 - Gap you walk through: x ±2.9 (between the pillars), the only opening in the fence.
 
-**Desert Sign.** Black board at z -43.4, behind the arch.
-- Board: 11 m wide, 6.8 m tall (y 6.8 to 13.6), 0.5 m deep.
-- Legs: two black posts 0.6 m square at x ±4.5, from the floor up to the board.
-- Face: "Desert" in large white text over a green price bar showing `$12M` (`DESERT_SIGN.price`).
+**Forest Sign.** Black board centred at x 0, z -75.6 (`NORTH.wallZ + 0.4`), hung flat on the North Wall's inner face (just clear of the wall cap's overhang), facing south toward the plaza. No legs, no collider (it is out of reach).
+- Board: 11 m wide, 6.8 m tall (y 6.8 to 13.6), 0.5 m deep; its top half rises above the inner tier against the outer tier.
+- Face: "Forest" in large white text over a green price bar showing `$12M` (`FOREST_SIGN.price`).
 
 **Signboards** (all 4.8 m wide, 3.0 m tall, 0.45 m deep, on two 1.2 m wooden legs; the board's bottom edge is 0.9 m above T). Each is turned toward the plaza by the angle below (radians, positive turns the face toward +X; so the left boards face right and the right boards face left).
 
@@ -130,32 +130,39 @@ Code: `Signboard` in MineGate.jsx (art in `infoBoardTexture` in [labels.js](src/
 - East side: x 26, z -68 to -42.
 - North side: z -68, x -26 to 26.
 
-**Desert Mine.** Floor from x -26 to 26 and z -68 to -42 (52 m × 26 m), orange-tiled with 2 m tiles `#ea8b3c` and `#e3823a`, studs and orange grout. Empty for now (no mining blocks yet).
+**Forest Mine.** Floor from x -26 to 26 and z -68 to -42 (52 m × 26 m), orange-tiled with 2 m tiles `#ea8b3c` and `#e3823a`, studs and orange grout. Each column is 8 stacked removable 2 × 2 × 2 m cubes (`removeCube` / `removeCubeAt` in mineCubes.js; in dev, `window.__mine`); a fully dug column bottoms out on a bed at y -15.6. No removal input yet.
 
 **North Trees.** Same tree as the rest of the map (`Tree` in Props.jsx, shared), solid in a 0.8 m circle. Positions (x, z):
 - Beside the mine: (-33, -46), (33, -47), (-33, -61), (34, -62)
-- Along the north wall: (-31, -72), (-16, -72.5), (0, -73), (16, -72.5), (31, -72)
+- Along the north wall: (-31, -72), (-16, -72.5), (16, -72.5), (31, -72)
 
 **North Bushes.** Low leaf blocks (2.2 m × 1.2 m, plus a small top block), not solid. Positions (x, z): (-29, -44), (29, -52), (-29.5, -57), (23, -70.5), (-9, -70.5), (8, -71). Code: `BUSHES` in MineGate.jsx.
 
-**North Wall.** Inner face at z -76, two tiers like the other walls (inner tier 7 to 8 m, outer tier 13 to 16 m, 4 m thick), grass-topped. The east and west walls extend north (z -76 to -40) to meet it. Code: `Walls` in Hub.jsx, `NORTH.wallZ` in world.js.
+**North Wall.** Inner face at z -76, two tiers like the other walls (inner tier 7 to 8 m, outer tier 13 to 16 m, 4 m thick), grass-topped. The Forest Sign hangs on it at x 0. The east and west walls extend north (z -76 to -40) to meet it. Code: `Walls` in Hub.jsx, `NORTH.wallZ` in world.js.
 
 ## West: Training
 
-Code: [Training.jsx](src/components/world/Training.jsx), data: `TARGETS` and `TRAINING_PAD` in world.js.
+Code: [Training.jsx](src/components/world/Training.jsx), data: `TARGETS`, `TARGET_ROWS`, `TRAINING_STAGE`, `TARGET_TILE` and `TARGET_BLOCK` in world.js. The **Teleport Button**'s Training stop is (-22, 0), facing west.
 
 | Name | Position (x, z) | What it is |
 |---|---|---|
-| **Training Banner** | -38.2, 0 | Blue "Training" banner over the west wall |
-| **Training Pad** | -32, 0 | Gold pad in the middle of the targets |
-| **Seating** | against the west wall | Two-step bleachers |
-| **Wood Target** | -25, 12.5 | 1x Damage, unlocked |
-| **Stone Target** | -29.5, 9 | 1.5x Damage, costs 1 rebirth |
-| **Snow Target** | -33, 5.2 | 3x Damage, costs 3 rebirths |
-| **Crystal Target** | -34, 0 | 50x Damage, costs 449 gems (spinning blue crystal) |
-| **Ruby Target** | -33, -5.2 | 25x Damage, costs 205 gems |
-| **Emerald Target** | -29.5, -9 | 10x Damage, costs 10 rebirths |
-| **Gold Target** | -25, -12.5 | 5x Damage, costs 5 rebirths |
+| **Training Banner** | -41.2, 0 | Blue "Training" banner (15 m wide) in a dark-blue frame, standing on the lower wall tier's ledge |
+| **Training Stage** | x -37 to -30, z -19 to 19 | Low blue-grey stage (top 1.0, a single step up from the path) with a gold strip (z ±4) in line with the path; holds the back row |
+| **Seating** | against the west wall | Two-step bleachers, level with the stage at the back |
+
+Targets are 2.4 m blocks on 3.4 m coloured floor tiles. The front row is at x -26 on the floor; the back row is at x -33.5 on the stage. Labels show the cost (or "Unlocked") and the damage multiplier; back-row labels sit higher so they clear the front row's. Each is solid within 1.6 m.
+
+| Name | Position (x, z) | Row | Tile | Damage | Cost |
+|---|---|---|---|---|---|
+| **Stone Target** | -26, 13.5 | front | grey | 1.5x | 1 rebirth |
+| **Wood Target** | -26, 6.5 | front | brown | 1x | unlocked (starter) |
+| **Snow Target** | -26, -6.5 | front | light blue | 3x | 3 rebirths |
+| **Emerald Target** | -26, -13.5 | front | orange | 5x | 5 rebirths |
+| **Sand Target** | -33.5, 14 | back | yellow | 7x | 7 rebirths |
+| **Amethyst Target** | -33.5, 7 | back | purple | 10x | 69 gems |
+| **Crystal Target** | -33.5, 0 | back | red, on the gold strip | 50x | 449 gems (spinning, glowing blue crystal with orbiting shards) |
+| **Lava Target** | -33.5, -7 | back | dark | 25x | 205 gems |
+| **Ruby Target** | -33.5, -14 | back | red | 10x | 10 rebirths |
 
 ## East: Leaderboards
 
@@ -201,11 +208,14 @@ Code: [Hud.jsx](src/components/Hud.jsx), panels in [Panels.jsx](src/components/h
 | **Menu Cards** (Shop, Bag, Daily, Rebirth) and **Teleport Button** | left |
 | **Stats** (explosions, money, shells, rebirths) | bottom left |
 | **Offers** (90% OFF potion, FREE gift) | right |
-| **Hotbar** and **Enchanted Label** | bottom centre |
+| **Hotbar** (the player's inventory) and **Enchanted Label** | bottom centre |
+| **E Prompt** (keycap + hold ring) | centre, 70% down; shown only near an interact zone (see [Interact.md](Interact.md)) |
+| **Action Result** (green/red popup) | top centre, under the Level Bar |
+| **E Button** (touch only) | bottom right, beside JUMP |
 
 ## Solid or walk-through
 
-Solid things (you bump into them) are listed in `COLLIDERS` in world.js. Walk-through: the grass tufts, flowers, bushes, the Start Line and the carpets. Platforms (Admin Stage, Leaderboard Stage, Training Pad, Seating) can be walked up onto.
+Solid things (you bump into them) are listed in `COLLIDERS` in world.js. Walk-through: the grass tufts, flowers, bushes, the Start Line and the carpets. Platforms (Admin Stage, Leaderboard Stage, Training Stage, Seating) can be walked up onto.
 
 ## Adding or renaming one
 

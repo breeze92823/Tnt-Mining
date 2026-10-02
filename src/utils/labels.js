@@ -203,7 +203,7 @@ export function billboardTexture(lines) {
   return out
 }
 
-// Big framed banner (Training / Leaderboards / Desert).
+// Big framed banner (Training / Leaderboards / Forest).
 export function bannerTexture(text, { bg, border, inner, textColor = '#fff', w = 1024, h = 300, size = 170 }) {
   return make(`banner:${text}:${bg}`, w, h, (ctx) => {
     ctx.fillStyle = border
@@ -265,6 +265,9 @@ const ORES = {
   ruby: { base: '#5f5b62', spots: { count: 34, colors: ['#e3183c', '#ff4d6a', '#a10d28'] } },
   emerald: { base: '#6f746d', spots: { count: 38, colors: ['#22d64a', '#64ff7c', '#139b31'] } },
   gold: { base: '#7c7a73', spots: { count: 34, colors: ['#ffd21f', '#ffe970', '#d39b09'] } },
+  sand: { base: '#f0cf3a', spots: { count: 40, colors: ['#c99a12', '#ffe680', '#b58a0e'] } },
+  amethyst: { base: '#4a2f78', spots: { count: 40, colors: ['#a35cff', '#d1a3ff', '#6c2fc4'] } },
+  lava: { base: '#3a2622', spots: { count: 44, colors: ['#ff7a1a', '#ffb02e', '#e0440e'] } },
   dirt: { base: '#8b4f2a', spots: { count: 20, colors: ['#6e3b1c', '#a5643a'] } },
 }
 
@@ -427,7 +430,7 @@ export function leaderboardTexture(board) {
   })
 }
 
-// Signboards in front of the Desert Mine fence (see INFO_BOARDS in world.js).
+// Signboards in front of the Forest Mine fence (see INFO_BOARDS in world.js).
 // 512x320 to match the 4.6 x 2.9 m board face.
 function woodBoard(ctx, w, h) {
   ctx.fillStyle = '#5e3216'
@@ -548,17 +551,17 @@ export function infoBoardTexture(kind) {
   })
 }
 
-// Black "Desert" sign over the Mine arch, with the zone's green price bar.
+// Black "Forest" sign over the Mine arch, with the zone's green price bar.
 // Only the upper half shows above the arch header.
-export function desertSignTexture(price) {
-  return make(`desert:${price}`, 1024, 736, (ctx, w, h) => {
+export function forestSignTexture(price) {
+  return make(`forest:${price}`, 1024, 736, (ctx, w, h) => {
     ctx.fillStyle = '#050506'
     ctx.fillRect(0, 0, w, h)
     ctx.fillStyle = '#121216'
     ctx.fillRect(10, 10, w - 20, h - 20)
     ctx.shadowColor = 'rgba(0,0,0,0.6)'
     ctx.shadowOffsetY = 6
-    strokeText(ctx, 'Desert', w / 2, 150, 190, '#f4f4f4', { stroke: null })
+    strokeText(ctx, 'Forest', w / 2, 150, 190, '#f4f4f4', { stroke: null })
     ctx.shadowColor = 'transparent'
     pill(ctx, w / 2 - 250, 262, 500, 120, '#4dff5a', '#18c234', '#0a4a14')
     ctx.fillStyle = 'rgba(255,255,255,0.25)'

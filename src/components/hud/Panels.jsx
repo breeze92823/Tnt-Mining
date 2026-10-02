@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { closePanel, useGameStore } from '../../store/useGameStore.js'
+import { closePanel, selectSlot, useGameStore } from '../../store/useGameStore.js'
 import { resetPlayer } from '../../systems/playerState.js'
 import { syncYawToPlayer } from '../../systems/cameraOrbit.js'
 import { setSetting, settings } from '../../systems/settingsState.js'
@@ -22,8 +22,8 @@ const TNT_SHOP = [
 
 const DESTINATIONS = [
   { name: 'Spawn', pos: { x: 0, y: 0.3, z: 2 }, facing: Math.PI },
-  { name: 'Desert Mine', pos: { x: 0, y: 0.4, z: -36 }, facing: Math.PI },
-  { name: 'Training', pos: { x: -27, y: 0.4, z: 0 }, facing: -Math.PI / 2 },
+  { name: 'Forest Mine', pos: { x: 0, y: 0.4, z: -36 }, facing: Math.PI },
+  { name: 'Training', pos: { x: -22, y: 0.4, z: 0 }, facing: -Math.PI / 2 },
   { name: 'Leaderboards', pos: { x: 29, y: 0.4, z: 0 }, facing: Math.PI / 2 },
   { name: 'Premium TNT', pos: { x: 0, y: 0.4, z: 26 }, facing: 0 },
 ]
@@ -58,21 +58,34 @@ function Shop() {
   )
 }
 
+// The player's inventory: the HUD hotbar shows these in order (slot = index).
+export const INVENTORY = [
+  { name: 'Green TNT', count: 5, Icon: TntIcon, enchanted: true, stock: 'tnt' }, // `stock`: live count key in the game store,
+  { name: 'Pickaxe', Icon: PickaxeIcon },
+  { name: 'Dirt', count: 141, Icon: DirtIcon },
+]
+
 function Bag() {
-  const items = [
-    { name: 'Green TNT', count: 5, Icon: TntIcon },
-    { name: 'Pickaxe', count: 1, Icon: PickaxeIcon },
-    { name: 'Dirt', count: 141, Icon: DirtIcon },
-  ]
+  const slot = useGameStore((s) => s.slot)
+  const tnt = useGameStore((s) => s.tnt)
   return (
     <div className="panel-grid">
-      {items.map(({ name, count, Icon }) => (
-        <div key={name} className="panel-tile">
+      {INVENTORY.map(({ name, count: base, stock, Icon }, i) => {
+        const count = stock === 'tnt' ? tnt : base
+        return (
+        <button
+          key={name}
+          type="button"
+          className={`panel-tile panel-tile-btn${slot === i ? ' is-selected' : ''}`}
+          aria-pressed={slot === i}
+          onClick={(e) => { selectSlot(i); e.currentTarget.blur() }}
+        >
           <Icon className="panel-tile-icon" />
           <b>{name}</b>
-          <small>x{count}</small>
-        </div>
-      ))}
+          <small>{count !== undefined ? `x${count}` : slot === i ? 'Selected' : ''}</small>
+        </button>
+        )
+      })}
       {Array.from({ length: 5 }, (_, i) => (
         <div key={i} className="panel-tile is-empty" />
       ))}

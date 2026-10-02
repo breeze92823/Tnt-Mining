@@ -208,6 +208,9 @@
   border-radius: 10px; background: #fff; border: 3px solid #e8d8c0; text-align: center;
 }
 .panel-tile.is-empty { background: #f1e6d4; }
+.hud .panel-tile-btn { cursor: pointer; font: inherit; color: inherit; }
+.hud .panel-tile-btn:hover { border-color: #f3a53a; }
+.hud .panel-tile-btn.is-selected { border-color: #2fae3d; background: #eaffea; }
 .panel-tile.is-ready { border-color: #2fae3d; background: #eaffea; }
 .panel-tile b { font-family: 'Fredoka', sans-serif; }
 .panel-tile-icon { width: 56px; height: 56px; }
@@ -228,4 +231,44 @@
   .hud-menu { top: calc(var(--s) * 190); }
   .hud-stat { height: calc(var(--s) * 54); }
   .hud-stats { bottom: calc(var(--s) * 16); gap: calc(var(--s) * 4); }
+}
+
+/* ---------------------------------------------------------------------------
+   "Hold E" interaction (components/hud/InteractPrompt.jsx + ActionResult.jsx;
+   systems/interact.js). See Interact.md.
+   --------------------------------------------------------------------------- */
+.hud .hud-interact {
+  left: 50%; top: 70%; transform: translate(-50%, -50%);
+  display: flex; align-items: center; gap: calc(var(--s) * 18);
+  padding: calc(var(--s) * 12) calc(var(--s) * 26); border-radius: calc(var(--s) * 18);
+  background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(4px);
+  transition: all 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.hud-interact-key { position: relative; display: grid; place-items: center; flex: none; width: calc(var(--s) * 60); height: calc(var(--s) * 60); transition: background-color 300ms; }
+.hud-interact-ring { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
+.hud-interact-cap {
+  position: relative; display: grid; place-items: center; width: calc(var(--s) * 34); height: calc(var(--s) * 34);
+  border: calc(var(--s) * 3) solid rgba(255, 255, 255, 0.7); border-radius: calc(var(--s) * 8); background: rgba(255, 255, 255, 0.1);
+  font-size: calc(var(--s) * 24); color: #fff;
+}
+.hud-interact-text { font-size: calc(var(--s) * 32); color: #fff; letter-spacing: 0.04em; text-shadow: 0 calc(var(--s) * 2) 0 rgba(0, 0, 0, 0.4); }
+/* Held: strip to a circle around the enlarged ring + keycap, no label. */
+.hud-interact.is-held { transform: translate(-50%, -50%) scale(1.5); padding: 0; background: none; backdrop-filter: none; }
+.hud-interact.is-held .hud-interact-key { background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(4px); border-radius: 50%; }
+.hud-interact.is-held .hud-interact-text { display: none; }
+
+.hud .hud-action-result { left: 50%; top: calc(var(--s) * 120); transform: translateX(-50%); z-index: 60; }
+.hud-action-result-bar {
+  display: flex; align-items: center; justify-content: center;
+  width: calc(var(--s) * 820); height: calc(var(--s) * 84);
+  background: linear-gradient(90deg, rgba(0, 0, 0, 0), rgba(0, 0, 0, 1) 50%, rgba(0, 0, 0, 0));
+  animation: hud-action-result-pop 2.4s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+.hud-action-result-text { font-size: calc(var(--s) * 52); -webkit-text-stroke: calc(var(--s) * 3) #000; paint-order: stroke fill; }
+@keyframes hud-action-result-pop {
+  0% { opacity: 0; transform: scale(0.4); }
+  8% { opacity: 1; transform: scale(1.12); }
+  14% { opacity: 1; transform: scale(1); }
+  80% { opacity: 1; transform: scale(1); }
+  100% { opacity: 0; transform: scale(0.5); }
 }
