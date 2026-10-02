@@ -7,7 +7,7 @@
 // save (`saveProgress`); restores it from `progress` on join; and exposes the `leaderboard`
 // push that components/world/Leaderboards.jsx renders.
 import { subscribeAuth, authState, getStableUserId, getDisplayName } from './bloxity.js'
-import { useGameStore, blastPower, progressSnapshot, hydrateProgress } from '../store/useGameStore.js'
+import { useGameStore, blastPower, progressSnapshot, hydrateProgress, setProgressKnown } from '../store/useGameStore.js'
 import {
   SERVER_URL,
   ROOM_NAME,
@@ -15,6 +15,7 @@ import {
   RETRY_BACKOFF_MS,
   STATS_RESEND_DEBOUNCE_MS,
   PROGRESS_RESEND_DEBOUNCE_MS,
+  PROGRESS_KNOWN_TIMEOUT_MS,
   USERNAME_WAIT_MS,
 } from '../data/net.js'
 
@@ -93,13 +94,11 @@ function applyProgress(d) {
   if (hydratedFromServer) return
   hydratedFromServer = true
   progressLoaded = true
-  // A doc made only by the server's playtime flush has no save in it yet: keep the local values.
-  if (Array.isArray(d?.tntOwned) && d.tntOwned.length) {
-    try {
-      hydrateProgress(d)
-    } catch (err) {
-      console.warn('[net] could not apply saved progress', err)
-    }
+  try {
+    hydrateProgress(d) // also settles the tutorial step; a playtime-only doc keeps the local values
+  } catch (err) {
+    console.warn('[net] could not apply saved progress', err)
+    setProgressKnown()
   }
   lastProgSnap = JSON.stringify(progressSnapshot()) // what we just loaded isn't a change to save
   lastSnap = ''
@@ -251,6 +250,7 @@ function attachRoom(joined) {
   room.onMessage('noProgress', () => {
     progressLoaded = true
     hydratedFromServer = true
+    setProgressKnown() // a brand-new account: the tutorial starts now
     onStateChange()
   })
   room.onMessage('leaderboard', (data) => {
@@ -287,9 +287,15 @@ export function init() {
   if (started) return
   started = true
   stopped = false
-  // No server configured for this build: stay 'idle' forever. Every export below already
-  // no-ops without a room.
-  if (!SERVER_URL) return
+  // Ceiling on the new-vs-returning signal, so a slow join or save lookup never stalls a new
+  // player's tutorial for good (a late `progress` still applies, see hydrateProgress).
+  setTimeout(setProgressKnown, PROGRESS_KNOWN_TIMEOUT_MS)
+  // No server configured for this build: stay 'idle' forever, with no save to wait for. Every
+  // export below already no-ops without a room.
+  if (!SERVER_URL) {
+    setProgressKnown()
+    return
+  }
 
   lastProgSnap = JSON.stringify(progressSnapshot())
   offs = [
@@ -299,6 +305,8 @@ export function init() {
     subscribeAuth(() => sendIdentityNow()),
   ]
   waitForAuth(USERNAME_WAIT_MS).then(() => {
+    // A guest has no save to wait for: no need to ride out the full timeout.
+    if (!getStableUserId()) setProgressKnown()
     if (!stopped) connect()
   })
 }

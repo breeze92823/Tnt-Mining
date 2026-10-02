@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { tntById } from '../data/tnts.js'
+import { TUTORIAL_DONE_STEP } from '../data/tutorial.js'
 
 // VITE_CARRY_MAX in .env sets how much TNT the player can hold at the start (defaults to 5).
 const CARRY_MAX = Math.max(1, Math.floor(Number(import.meta.env.VITE_CARRY_MAX)) || 5)
@@ -36,7 +37,16 @@ export const useGameStore = create(() => ({
   clickPower: START_CLICK_POWER, // grows with every left click (addClickPower); blastPower = equipped TNT blast + this
   slot: 0, // selected hotbar slot, or null when nothing is held
   panel: null, // open HUD panel id, or null
+  tutorialStep: 0, // 0 go to the mine, 1 place TNT, 2 light it, 3 collect, 4 go to SELL, 5 sell, 6 buy TNT, 7 done (data/tutorial.js)
+  // Whether we know if this player already has a save (systems/net.js): true once the server's
+  // `progress`/`noProgress` reply arrives, or once there is nothing to wait for (guest, no server,
+  // timeout). The tutorial stays hidden until then, so a returning player never sees it flash at step 0.
+  progressKnown: false,
+  // True when the loaded save had already finished the tutorial, so it is never replayed.
+  tutorialResumedDone: false,
 }))
+
+export const setProgressKnown = () => useGameStore.setState((s) => (s.progressKnown ? s : { progressKnown: true }))
 
 // Extra blastPower needed to pass level n = floor(15 * 1.35^(n-1)): 15, 20, 27, 36, 49, 67, 90, 122, 165, ...
 // The costs add up: level 2 at 15 total, level 3 at 35, level 4 at 62, ...
@@ -121,7 +131,7 @@ const SAVED_NUMBERS = ['money', 'gems', 'shells', 'rebirths', 'clickPower', 'tnt
 // Everything the backend saves for a signed-in player (the backend sanitizes it).
 export function progressSnapshot() {
   const s = useGameStore.getState()
-  const out = { damage: blastPower(s), tntOwned: s.tntOwned, tntEquipped: s.tntEquipped, ores: {} }
+  const out = { damage: blastPower(s), tntOwned: s.tntOwned, tntEquipped: s.tntEquipped, tutorialStep: s.tutorialStep, ores: {} }
   for (const k of SAVED_NUMBERS) out[k] = s[k]
   for (const k of ORE_ITEMS) out.ores[k] = s[k]
   return out
@@ -129,12 +139,18 @@ export function progressSnapshot() {
 
 // Applies a saved doc from the backend (`progress` message), ignoring anything malformed.
 export function hydrateProgress(d) {
-  const next = {}
-  for (const k of SAVED_NUMBERS) if (Number.isFinite(d?.[k])) next[k] = d[k]
+  const s = useGameStore.getState()
+  const next = { progressKnown: true }
+  // A doc made only by the server's playtime flush has no save in it yet: keep the local values.
   if (Array.isArray(d?.tntOwned) && d.tntOwned.length) {
+    for (const k of SAVED_NUMBERS) if (Number.isFinite(d?.[k])) next[k] = d[k]
     next.tntOwned = d.tntOwned
     next.tntEquipped = d.tntOwned.includes(d.tntEquipped) ? d.tntEquipped : d.tntOwned[0]
+    for (const k of ORE_ITEMS) if (Number.isFinite(d?.ores?.[k])) next[k] = d.ores[k]
   }
-  for (const k of ORE_ITEMS) if (Number.isFinite(d?.ores?.[k])) next[k] = d.ores[k]
+  // The step only ever moves forward.
+  const saved = Number.isFinite(d?.tutorialStep) ? Math.min(TUTORIAL_DONE_STEP, Math.max(0, Math.floor(d.tutorialStep))) : 0
+  next.tutorialStep = Math.max(s.tutorialStep, saved)
+  next.tutorialResumedDone = s.tutorialResumedDone || (next.tutorialStep >= TUTORIAL_DONE_STEP && s.tutorialStep < TUTORIAL_DONE_STEP)
   useGameStore.setState(next)
 }

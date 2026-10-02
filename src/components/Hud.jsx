@@ -8,6 +8,7 @@ import { tntById } from '../data/tnts.js'
 import Panels, { visibleSlots } from './hud/Panels.jsx'
 import InteractPrompt from './hud/InteractPrompt.jsx'
 import ActionResult from './hud/ActionResult.jsx'
+import TutorialBanner from './hud/TutorialBanner.jsx'
 import CollectPopups from './hud/CollectPopups.jsx'
 import ActionPopups from './hud/ActionPopups.jsx'
 import { interactState } from '../systems/interact.js'
@@ -217,6 +218,7 @@ export default function Hud() {
       <Hotbar />
       <InteractPrompt ref={promptRef} />
       <ActionResult ref={resultRef} />
+      <TutorialBanner />
       <CollectPopups />
       <ActionPopups />
       <LoginButton />

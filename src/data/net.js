@@ -23,6 +23,10 @@ export const RETRY_BACKOFF_MS = [3_000, 6_000, 12_000, 20_000, 30_000]
 export const STATS_RESEND_DEBOUNCE_MS = 1_000
 export const PROGRESS_RESEND_DEBOUNCE_MS = 3_000
 
+// How long, from page load, to wait for a save before concluding there isn't one (gates whether
+// the tutorial shows at all: see store progressKnown).
+export const PROGRESS_KNOWN_TIMEOUT_MS = 12_000
+
 // Wait this long for Bloxity auth to settle before the first connect, so a signed-in player
 // joins under their real userId instead of as a guest.
 export const USERNAME_WAIT_MS = 8_000
