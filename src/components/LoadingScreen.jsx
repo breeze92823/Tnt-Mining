@@ -27,10 +27,10 @@ export default function LoadingScreen({ sceneReady }) {
 
   return (
     <div className={`loading${ready ? ' is-done' : ''}`} style={{ transitionDuration: `${FADE_MS}ms` }}>
-      <div className="loading-swirl" aria-hidden>
-        <i /><i /><i />
+      <div className="loading-tnt" aria-hidden>
+        <span className="spark" /><span className="fuse" /><span className="stick" />
       </div>
-      <h1>TNT MINING</h1>
+      <h1>+1 TNT MINING</h1>
       <div className="loading-track"><div className="loading-fill" /></div>
       <p>{sceneReady ? (authReady ? 'Getting ready…' : 'Signing in…') : 'Building the world…'}</p>
     </div>

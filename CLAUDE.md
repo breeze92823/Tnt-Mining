@@ -1,4 +1,4 @@
-# Tnt Mining
+# +1 TNT Mining
 
 3D game shell. Vite + React 18 + @react-three/fiber 8 + three 0.171 + zustand, plain JS/JSX. Same architecture as ../Poop-a-big-poop, stripped to a flat ground and the Bloxity-integrated player.
 

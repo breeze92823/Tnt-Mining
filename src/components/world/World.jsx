@@ -5,6 +5,7 @@ import Pedestals from './Pedestals.jsx'
 import Training from './Training.jsx'
 import Leaderboards from './Leaderboards.jsx'
 import MineGate from './MineGate.jsx'
+import HubWall from './HubWall.jsx'
 import Props from './Props.jsx'
 
 // The lobby hub (layout in data/world.js). Suspends until the label font has
@@ -19,6 +20,7 @@ export default function World() {
       <Training />
       <Leaderboards />
       <MineGate />
+      <HubWall />
       <Props />
     </group>
   )

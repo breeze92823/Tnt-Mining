@@ -85,7 +85,34 @@ export const LB_BOARDS = [
   { id: 'money', title: 'Most Money', icon: 'cash', z: 8.5 },
 ]
 
-export const GATE = { z: -39, halfW: 7, height: 12 }
+// North zone: a checkered start line where the hub ends, a bright-green field,
+// then a wooden fence with the "Mine" arch (under the black "Desert" sign)
+// opening onto the orange Desert Mine floor. The north wall sits behind it all.
+export const NORTH = {
+  checkerZ: -27, // south edge of the 2 m checkered line (runs to -29)
+  fenceZ: -42, // fence line with the Mine arch
+  mine: { x0: -26, x1: 26, z0: -68, z1: -42 }, // orange mine floor, fenced
+  wallZ: -76, // inner face of the north wall
+  grass: '#0fcf3a',
+}
+// Dividing wall between the hub and the north zone, just past the Start Line,
+// spanning wall to wall (x ±WALL.inner) with a narrow gate in the middle.
+export const HUB_WALL = { z0: -33, z1: -29, halfGap: 5, height: 9 }
+export const GATE = { z: NORTH.fenceZ, halfW: 3.6, height: 8.4 } // the Mine arch (pillar centres at ±halfW)
+export const DESERT_SIGN = { z: NORTH.fenceZ - 1.4, w: 11, y0: 6.8, y1: 13.6, price: '$12M' }
+// Signboards fanned out in front of the fence, angled toward the plaza.
+export const INFO_BOARDS = [
+  { id: 'damage', x: -14, z: -37.6, rot: 0.42 },
+  { id: 'secret', x: -8, z: -38.8, rot: 0.18 },
+  { id: 'luck', x: 8, z: -38.8, rot: -0.18 },
+  { id: 'deep', x: 14, z: -37.6, rot: -0.42 },
+]
+export const NORTH_TREES = [
+  [-33, -46], [33, -47], [-33, -61], [34, -62],
+  [-31, -72], [-16, -72.5], [0, -73], [16, -72.5], [31, -72],
+]
+// Walkable area (the player is clamped to it); the north edge is past the moved wall.
+export const WORLD_BOUNDS = { minX: -49, maxX: 49, minZ: -85, maxZ: 49 }
 
 export const TREES = [
   [-18.5, -18], [18.5, -18.5], [18.5, 18], [-18, 18.5],
@@ -111,15 +138,15 @@ export const COLLIDERS = [
   circle(0, 0, PLAZA.rim, PLAZA.rimTop),
   circle(0, 0, PLAZA.radius, PLAZA.top),
   // raised outer floor (four bands around the grass square)
-  box(-W, W, -W, -G, FLOOR_TOP),
+  box(-W, W, NORTH.wallZ, -G, FLOOR_TOP),
   box(-W, W, G, W, FLOOR_TOP),
   box(-W, -G, -G, G, FLOOR_TOP),
   box(G, W, -G, G, FLOOR_TOP),
   // perimeter walls
-  box(-60, 60, -60, -W, WALL.outerHeight),
+  box(-60, 60, NORTH.wallZ - 20, NORTH.wallZ, WALL.outerHeight),
   box(-60, 60, W, 60, WALL.outerHeight),
-  box(-60, -W, -60, 60, WALL.outerHeight),
-  box(W, 60, -60, 60, WALL.outerHeight),
+  box(-60, -W, NORTH.wallZ - 20, 60, WALL.outerHeight),
+  box(W, 60, NORTH.wallZ - 20, 60, WALL.outerHeight),
   // stalls, trees, props
   ...STALLS.map((s) => circle(s.x, s.z, STALL_RADIUS, 1.3)),
   ...TREES.map(([x, z]) => circle(x, z, 0.8, 6)),
@@ -138,8 +165,27 @@ export const COLLIDERS = [
   box(LB_STAGE.x0, LB_STAGE.x1, LB_STAGE.z0, LB_STAGE.z1, LB_STAGE.step),
   box(LB_STAGE.x0 + 2, LB_STAGE.x1, LB_STAGE.z0, LB_STAGE.z1, LB_STAGE.top),
   ...LB_BOARDS.map((b) => box(LB_BOARD_X - 0.4, LB_BOARD_X + 1, b.z - 3.2, b.z + 3.2, 9)),
-  // north: mine gate
-  box(-GATE.halfW - 1, GATE.halfW + 1, GATE.z - 2, GATE.z + 1.6, GATE.height),
-  box(-13.4, -9.6, GATE.z + 2.1, GATE.z + 3.1, 3), // info boards
-  box(8.7, 16, GATE.z + 2.1, GATE.z + 3.1, 3),
+  // north: Mine arch pillars, Desert sign legs, signboards, fences, trees
+  box(-GATE.halfW - 0.7, -GATE.halfW + 0.7, GATE.z - 0.7, GATE.z + 0.7, GATE.height),
+  box(GATE.halfW - 0.7, GATE.halfW + 0.7, GATE.z - 0.7, GATE.z + 0.7, GATE.height),
+  ...[-1, 1].map((sx) => box(sx * 4.5 - 0.3, sx * 4.5 + 0.3, DESERT_SIGN.z - 0.3, DESERT_SIGN.z + 0.3, DESERT_SIGN.y0)),
+  ...INFO_BOARDS.map((b) => circle(b.x, b.z, 2.2, 4)),
+  ...fenceColliders(),
+  ...NORTH_TREES.map(([x, z]) => circle(x, z, 0.8, 6)),
+  // hub / north dividing wall (either side of the gate)
+  box(-WALL.inner, -HUB_WALL.halfGap, HUB_WALL.z0, HUB_WALL.z1, HUB_WALL.height),
+  box(HUB_WALL.halfGap, WALL.inner, HUB_WALL.z0, HUB_WALL.z1, HUB_WALL.height),
 ]
+
+// The mine fence as thin wall boxes, with the gap between the arch pillars.
+function fenceColliders() {
+  const { x0, x1, z0, z1 } = NORTH.mine
+  const t = 0.3
+  return [
+    box(x0, -GATE.halfW, z1 - t, z1 + t, 2.4),
+    box(GATE.halfW, x1, z1 - t, z1 + t, 2.4),
+    box(x0 - t, x0 + t, z0, z1, 2.4),
+    box(x1 - t, x1 + t, z0, z1, 2.4),
+    box(x0, x1, z0 - t, z0 + t, 2.4),
+  ]
+}

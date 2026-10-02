@@ -427,58 +427,143 @@ export function leaderboardTexture(board) {
   })
 }
 
-// Info boards next to the mine gate.
+// Signboards in front of the Desert Mine fence (see INFO_BOARDS in world.js).
+// 512x320 to match the 4.6 x 2.9 m board face.
+function woodBoard(ctx, w, h) {
+  ctx.fillStyle = '#5e3216'
+  ctx.fillRect(0, 0, w, h)
+  ctx.fillStyle = '#8f5428'
+  ctx.fillRect(18, 18, w - 36, h - 36)
+  ctx.fillStyle = 'rgba(60,28,8,0.35)'
+  for (let y = 18 + 70; y < h - 18; y += 70) ctx.fillRect(18, y, w - 36, 5)
+  ctx.fillStyle = 'rgba(255,220,170,0.08)'
+  for (let y = 18 + 30; y < h - 18; y += 70) ctx.fillRect(18, y, w - 36, 4)
+}
+
+function pill(ctx, x, y, w, h, top, bottom, edge) {
+  const g = ctx.createLinearGradient(0, y, 0, y + h)
+  g.addColorStop(0, top)
+  g.addColorStop(1, bottom)
+  ctx.fillStyle = g
+  ctx.strokeStyle = edge
+  ctx.lineWidth = 6
+  ctx.beginPath()
+  ctx.roundRect(x, y, w, h, 8)
+  ctx.fill()
+  ctx.stroke()
+}
+
+function clover(ctx, cx, cy, r) {
+  ctx.save()
+  ctx.strokeStyle = '#0d5a1c'
+  ctx.lineWidth = r * 0.22
+  ctx.lineCap = 'round'
+  ctx.beginPath()
+  ctx.moveTo(cx, cy + r * 0.2)
+  ctx.quadraticCurveTo(cx + r * 0.3, cy + r * 1.1, cx + r * 0.1, cy + r * 1.5)
+  ctx.stroke()
+  for (let i = 0; i < 4; i++) {
+    const a = (i * Math.PI) / 2 + Math.PI / 4
+    ctx.beginPath()
+    ctx.arc(cx + Math.cos(a) * r * 0.55, cy + Math.sin(a) * r * 0.55, r * 0.55, 0, Math.PI * 2)
+    ctx.fillStyle = i % 2 ? '#4fe03a' : '#7dff4a'
+    ctx.fill()
+    ctx.lineWidth = r * 0.1
+    ctx.stroke()
+  }
+  ctx.restore()
+}
+
+function fist(ctx, cx, cy, s) {
+  ctx.save()
+  ctx.fillStyle = '#ffcf2a'
+  ctx.strokeStyle = '#7a4a00'
+  ctx.lineWidth = s * 0.1
+  ctx.beginPath()
+  ctx.roundRect(cx - s * 0.6, cy - s * 0.4, s * 1.2, s * 0.8, s * 0.2)
+  ctx.fill()
+  ctx.stroke()
+  for (let i = 1; i < 4; i++) {
+    ctx.beginPath()
+    ctx.moveTo(cx - s * 0.6 + i * s * 0.3, cy - s * 0.4)
+    ctx.lineTo(cx - s * 0.6 + i * s * 0.3, cy)
+    ctx.stroke()
+  }
+  ctx.restore()
+}
+
 export function infoBoardTexture(kind) {
-  return make(`info:${kind}`, 384, 256, (ctx, w, h) => {
-    const theme = {
-      secret: ['#5a2bb0', '#2a1063'],
-      luck: ['#1fa83a', '#0d5a1c'],
-      deep: ['#3a3f4a', '#1a1d24'],
-    }[kind]
-    ctx.fillStyle = theme[1]
-    ctx.fillRect(0, 0, w, h)
-    ctx.fillStyle = theme[0]
-    ctx.fillRect(12, 12, w - 24, h - 24)
-    if (kind === 'secret') {
-      strokeText(ctx, 'Secrets spawn', w / 2, 62, 40)
-      strokeText(ctx, 'in Desert Mine', w / 2, 108, 34, '#e6d4ff')
-      ctx.fillStyle = '#ffd33a'
+  return make(`info:${kind}`, 512, 320, (ctx, w, h) => {
+    if (kind === 'damage') {
+      woodBoard(ctx, w, h)
+      strokeText(ctx, 'More Damage', w / 2, 92, 58)
+      strokeText(ctx, '= Bigger', w / 2, 160, 58)
+      strokeText(ctx, 'Explosions', w / 2 - 20, 228, 58)
+      drawIcon(ctx, 'burst', w / 2 + 170, 226, 50)
+    } else if (kind === 'deep') {
+      woodBoard(ctx, w, h)
+      strokeText(ctx, 'Deeper =', w / 2, 92, 62)
+      strokeText(ctx, 'Tougher', w / 2, 162, 62)
+      strokeText(ctx, 'Blocks', w / 2 - 24, 232, 62)
+      fist(ctx, w / 2 + 120, 234, 50)
+    } else if (kind === 'secret') {
+      ctx.fillStyle = '#2a0f5c'
+      ctx.fillRect(0, 0, w, h)
+      const g = ctx.createLinearGradient(0, 0, 0, h)
+      g.addColorStop(0, '#8a4ae8')
+      g.addColorStop(1, '#4d1c9e')
+      ctx.fillStyle = g
+      ctx.fillRect(16, 16, w - 32, h - 32)
+      // mystery creature: grey "?" blob
+      ctx.fillStyle = '#c9cbd6'
+      ctx.strokeStyle = '#2a2a3a'
+      ctx.lineWidth = 6
       ctx.beginPath()
-      ctx.roundRect(w / 2 - 90, 150, 180, 64, 14)
+      ctx.arc(74, 112, 46, 0, Math.PI * 2)
       ctx.fill()
-      strokeText(ctx, 'Track it!', w / 2, 183, 34, '#fff')
+      ctx.stroke()
+      strokeText(ctx, '?', 74, 116, 70, '#4a4a5c', { stroke: null })
+      strokeText(ctx, 'Secrets spawn', w / 2 + 50, 84, 50)
+      strokeText(ctx, 'in 21m 50s', w / 2 + 50, 146, 50)
+      pill(ctx, 70, 202, w - 140, 76, '#f37bff', '#b52ad8', '#3a0a5c')
+      strokeText(ctx, 'Track It!', w / 2, 242, 52)
     } else if (kind === 'luck') {
-      drawIcon(ctx, 'gem', 52, 60, 52)
-      strokeText(ctx, 'Mine Luck', 88, 62, 44, '#fff', { align: 'left' })
-      strokeText(ctx, '1x  ▸  1.2x', w / 2, 132, 46, '#c8ff9a')
       ctx.fillStyle = '#0d5a1c'
-      ctx.beginPath()
-      ctx.roundRect(w / 2 - 80, 172, 160, 56, 12)
+      ctx.fillRect(0, 0, w, h)
+      const g = ctx.createLinearGradient(0, 0, 0, h)
+      g.addColorStop(0, '#2fc84a')
+      g.addColorStop(1, '#168a2c')
+      ctx.fillStyle = g
+      ctx.fillRect(16, 16, w - 32, h - 32)
+      clover(ctx, 80, 92, 46)
+      strokeText(ctx, 'Mine Luck', w / 2 + 50, 80, 56)
+      strokeText(ctx, '1x', w / 2 - 30, 150, 54)
+      ctx.fillStyle = '#ffffff'
+      poly(ctx, [[w / 2 + 20, 128], [w / 2 + 52, 150], [w / 2 + 20, 172]])
       ctx.fill()
-      drawIcon(ctx, 'gem', w / 2 - 44, 200, 36)
-      strokeText(ctx, '25K', w / 2 + 14, 202, 34, '#5bff6a')
-    } else {
-      strokeText(ctx, 'Deep', w / 2, 70, 52)
-      strokeText(ctx, 'Tough', w / 2, 128, 52, '#ffb347')
-      strokeText(ctx, 'Block', w / 2, 186, 52)
+      strokeText(ctx, '1.2x', w / 2 + 120, 150, 54, '#7dff4a')
+      pill(ctx, 70, 204, w - 140, 76, '#5dff6a', '#1fb83a', '#0b4a16')
+      strokeText(ctx, '$4K', w / 2, 244, 56)
     }
   })
 }
 
-// Dark "Mine" doorway: green glow fading up from the floor.
-export function portalTexture() {
-  return make('portal', 256, 256, (ctx, w, h) => {
-    const g = ctx.createLinearGradient(0, h, 0, 0)
-    g.addColorStop(0, '#5df07a')
-    g.addColorStop(0.35, '#1c8a3a')
-    g.addColorStop(1, '#06120a')
-    ctx.fillStyle = g
+// Black "Desert" sign over the Mine arch, with the zone's green price bar.
+// Only the upper half shows above the arch header.
+export function desertSignTexture(price) {
+  return make(`desert:${price}`, 1024, 736, (ctx, w, h) => {
+    ctx.fillStyle = '#050506'
     ctx.fillRect(0, 0, w, h)
-    const rand = seededRandom(5)
-    for (let i = 0; i < 40; i++) {
-      ctx.fillStyle = `rgba(190,255,200,${0.15 + rand() * 0.4})`
-      ctx.fillRect(rand() * w, h * 0.3 + rand() * h * 0.7, 4, 4)
-    }
+    ctx.fillStyle = '#121216'
+    ctx.fillRect(10, 10, w - 20, h - 20)
+    ctx.shadowColor = 'rgba(0,0,0,0.6)'
+    ctx.shadowOffsetY = 6
+    strokeText(ctx, 'Desert', w / 2, 150, 190, '#f4f4f4', { stroke: null })
+    ctx.shadowColor = 'transparent'
+    pill(ctx, w / 2 - 250, 262, 500, 120, '#4dff5a', '#18c234', '#0a4a14')
+    ctx.fillStyle = 'rgba(255,255,255,0.25)'
+    ctx.fillRect(w / 2 - 240, 270, 480, 18)
+    strokeText(ctx, price, w / 2, 326, 100)
   })
 }
 

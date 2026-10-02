@@ -1,4 +1,4 @@
-import { COLLIDERS, GROUND, GROUND_Y } from '../data/world.js'
+import { COLLIDERS, GROUND_Y, WORLD_BOUNDS } from '../data/world.js'
 
 // Floor height under (x, z): the highest collider covering the point (see
 // COLLIDERS in data/world.js), else the bare ground. playerMovement and the
@@ -20,8 +20,8 @@ export function terrainHeightAt(x, z) {
   return h
 }
 
-// True once (x, z) is past the edge of the ground slab.
+// True once (x, z) is past the edge of the walkable world.
 export function isOutsideBounds(x, z) {
-  const half = GROUND.size / 2
-  return Math.abs(x) > half || Math.abs(z) > half
+  const b = WORLD_BOUNDS
+  return x < b.minX || x > b.maxX || z < b.minZ || z > b.maxZ
 }

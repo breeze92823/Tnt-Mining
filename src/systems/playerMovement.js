@@ -2,7 +2,7 @@ import { inputState } from './input.js'
 import { player } from './playerState.js'
 import { getYaw } from './cameraOrbit.js'
 import { terrainHeightAt } from './terrainHeight.js'
-import { GROUND, PLAYER_MOVE_SPEED } from '../data/world.js'
+import { PLAYER_MOVE_SPEED, WORLD_BOUNDS } from '../data/world.js'
 
 // Kinematic capsule, stepped once per frame: apply input -> gravity ->
 // integrate -> keep on the ground slab -> clamp to the ground height under
@@ -62,10 +62,10 @@ export function step(dt) {
   p.y += player.velocity.y * dt
   p.z += player.velocity.z * dt
 
-  // Invisible wall at the slab edge.
-  const maxE = GROUND.size / 2 - player.dims.radius
-  p.x = Math.max(-maxE, Math.min(maxE, p.x))
-  p.z = Math.max(-maxE, Math.min(maxE, p.z))
+  // Invisible wall at the edge of the world.
+  const r = player.dims.radius
+  p.x = Math.max(WORLD_BOUNDS.minX + r, Math.min(WORLD_BOUNDS.maxX - r, p.x))
+  p.z = Math.max(WORLD_BOUNDS.minZ + r, Math.min(WORLD_BOUNDS.maxZ - r, p.z))
 
   // Too tall a ledge to step onto: stay put unless the player jumps high enough.
   // Try each axis on its own first so the player slides along walls.
