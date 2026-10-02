@@ -12,6 +12,13 @@ const BOARD_X = LB_BOARD_X
 function Board({ board }) {
   const map = useMemo(() => leaderboardTexture(board), [board])
   const top = LB_STAGE.top
+  useEffect(
+    () =>
+      subscribeLeaderboard((data, selfId) => {
+        setLeaderboardRows(board, data?.[board.id], selfId)
+      }),
+    [board],
+  )
   return (
     <group position={[BOARD_X, 0, board.z]}>
       {[-2.8, 2.8].map((dz) => (
