@@ -3,6 +3,7 @@ import { settings } from '../systems/settingsState.js'
 import { useSettings } from '../systems/bloxityHooks.js'
 import { login, subscribeAuth } from '../systems/bloxity.js'
 import { openPanel, selectSlot, useGameStore } from '../store/useGameStore.js'
+import { tntById } from '../data/tnts.js'
 import Panels, { INVENTORY } from './hud/Panels.jsx'
 import InteractPrompt from './hud/InteractPrompt.jsx'
 import ActionResult from './hud/ActionResult.jsx'
@@ -162,6 +163,9 @@ function Hotbar() {
   const slot = useGameStore((s) => s.slot)
   const [done, total] = useGameStore((s) => s.enchanted)
   const tnt = useGameStore((s) => s.tnt)
+  const dirt = useGameStore((s) => s.dirt)
+  const stocks = { tnt, dirt }
+  const equipped = tntById(useGameStore((s) => s.tntEquipped))
 
   useEffect(() => {
     const onKey = (e) => {
@@ -179,18 +183,18 @@ function Hotbar() {
       </div>
       <div className="hud-hotbar">
         {INVENTORY.map(({ name, Icon, count: base, enchanted, stock }, i) => {
-          const count = stock === 'tnt' ? tnt : base
+          const count = stock ? stocks[stock] : base
           return (
           <button
             key={i}
             type="button"
             className={`hud-slot${slot === i ? ' is-selected' : ''}`}
-            aria-label={name}
+            aria-label={stock === 'tnt' ? `${equipped.name} TNT` : name}
             aria-pressed={slot === i}
             onClick={(e) => { selectSlot(i); e.currentTarget.blur() }}
           >
             <span className="hud-slot-num">{i + 1}</span>
-            <Icon className="hud-slot-icon" />
+            <Icon className="hud-slot-icon" {...(stock === 'tnt' && equipped)} />
             {enchanted && <SparkleIcon className="hud-slot-sparkle" />}
             {count !== undefined && <span className="hud-slot-count">x{count}</span>}
           </button>

@@ -24,7 +24,7 @@ const cyl = (r, h, material, x = 0, y = 0, z = 0) => {
 }
 
 const BUILDERS = [
-  // Green TNT: a block with darker bands, a white label and a lit fuse.
+  // TNT (recoloured to the equipped type): a block with darker bands, a white label and a lit fuse.
   () => {
     const g = new Group()
     const body = mat('#2bc04a')
@@ -33,6 +33,8 @@ const BUILDERS = [
     g.add(box(1.34, 0.22, 1.34, band, 0, 0.1, 0))
     g.add(box(1.34, 0.22, 1.34, band, 0, 0.9, 0))
     g.add(box(0.7, 0.34, 1.36, mat('#f4f4f4'), 0, 0.5, 0))
+    g.userData.body = body
+    g.userData.band = band
     g.add(cyl(0.06, 0.4, mat('#3a2a1a'), 0, 1.35, 0))
     g.add(box(0.14, 0.14, 0.14, mat('#ff8a1e', { emissive: '#ff6a00', emissiveIntensity: 1 }), 0, 1.6, 0))
     return g
@@ -75,6 +77,11 @@ export function createHeldItem(avatar) {
   let shown = true // false while the bent-over pose hides the item
 
   return {
+    // Recolour the TNT model ({ right: body, left: bands }).
+    tintTnt(c) {
+      models[0].userData.body.color.set(c.right)
+      models[0].userData.band.color.set(c.left)
+    },
     select(i) {
       slot = i == null ? -1 : i // null/-1: hands empty
       for (let j = 0; j < models.length; j++) models[j].visible = shown && j === i

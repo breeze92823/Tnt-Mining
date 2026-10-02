@@ -175,9 +175,9 @@ function IsoCube({ top, left, right, band }) {
   )
 }
 
-export const TntIcon = (p) => (
+export const TntIcon = ({ top = '#3fd25a', left = '#1f9a3a', right = '#2bb84a', ...p }) => (
   <Svg {...p}>
-    <IsoCube top="#3fd25a" left="#1f9a3a" right="#2bb84a" band />
+    <IsoCube top={top} left={left} right={right} band />
   </Svg>
 )
 
@@ -192,6 +192,28 @@ export const PickaxeIcon = (p) => (
     <rect x="44" y="30" width="12" height="64" rx="4" transform="rotate(35 50 60)" fill="#7a5a3a" stroke={INK} strokeWidth="4" />
     <path d="M10 34 Q40 4 88 20 L84 30 Q46 22 20 44 Z" fill="#b8bec8" stroke={INK} strokeWidth="5" />
     <path d="M22 30 Q46 12 78 20" fill="none" stroke="#e6e9ef" strokeWidth="4" />
+  </Svg>
+)
+
+export const UpgradeIcon = (p) => (
+  <Svg {...p}>
+    <path d="M50 8 L90 40 V58 L50 28 L10 58 V40 Z" fill="#5be03a" stroke={INK} strokeWidth="5" />
+    <path d="M50 44 L90 76 V94 L50 64 L10 94 V76 Z" fill="#3fc22a" stroke={INK} strokeWidth="5" />
+  </Svg>
+)
+
+export const BoltIcon = (p) => (
+  <Svg {...p}>
+    <polygon points="58,6 18,56 44,56 36,94 82,40 54,40" fill="#ffd21f" stroke={INK} strokeWidth="5" />
+  </Svg>
+)
+
+export const MagnetIcon = (p) => (
+  <Svg {...p}>
+    <path d="M18 60 V42 A32 32 0 0 1 82 42 V60" fill="none" stroke={INK} strokeWidth="30" />
+    <path d="M18 60 V42 A32 32 0 0 1 82 42 V60" fill="none" stroke="#e8262b" strokeWidth="20" />
+    <rect x="8" y="58" width="20" height="26" fill="#e6e9ef" stroke={INK} strokeWidth="5" />
+    <rect x="72" y="58" width="20" height="26" fill="#e6e9ef" stroke={INK} strokeWidth="5" />
   </Svg>
 )
 

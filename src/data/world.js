@@ -48,10 +48,10 @@ export const COLORS = {
 
 // Shop stalls in the grass quadrants, turned to face the plaza.
 export const STALLS = [
-  { id: 'tnt', label: 'TNT', icon: 'tnt', x: -12, z: -12, stripes: ['#e8262b', '#ffffff'], prompt: 'Buy TNT', panel: 'shop' },
-  { id: 'sell', label: 'SELL', icon: 'cash', x: 12, z: -12, stripes: ['#2fd13b', '#ffffff'], prompt: 'Sell Ores', panel: 'bag' },
+  { id: 'tnt', label: 'TNT', icon: 'tnt', x: -12, z: -12, stripes: ['#e8262b', '#ffffff'], prompt: 'Buy TNT', panel: 'tnts' },
+  { id: 'sell', label: 'SELL', icon: 'cash', x: 12, z: -12, stripes: ['#2fd13b', '#ffffff'], prompt: 'Sell Blocks', panel: 'sell' },
   { id: 'shop', label: 'SHOP', icon: 'basket', x: 12, z: 12, stripes: ['#ffd21f', '#ffffff'], prompt: 'Open Shop', panel: 'shop' },
-  { id: 'upgrade', label: 'UPGRADE', icon: 'upgrade', x: -12, z: 12, stripes: ['#f4ecd0', '#ffffff'], prompt: 'Upgrades', panel: 'rebirth' },
+  { id: 'upgrade', label: 'UPGRADE', icon: 'upgrade', x: -12, z: 12, stripes: ['#f4ecd0', '#ffffff'], prompt: 'Upgrades', panel: 'upgrades' },
 ]
 export const STALL_RADIUS = 3.9
 export const STALL_SCALE = 1.3

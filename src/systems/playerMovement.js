@@ -2,6 +2,7 @@ import { inputState } from './input.js'
 import { player } from './playerState.js'
 import { getYaw } from './cameraOrbit.js'
 import { terrainHeightAt } from './terrainHeight.js'
+import { useGameStore } from '../store/useGameStore.js'
 import { PLAYER_MOVE_SPEED, WORLD_BOUNDS } from '../data/world.js'
 
 // Kinematic capsule, stepped once per frame: apply input -> gravity ->
@@ -45,7 +46,9 @@ export function step(dt) {
   const wishX = (fwdX * mv.z + rightX * mv.x) * scale
   const wishZ = (fwdZ * mv.z + rightZ * mv.x) * scale
 
-  approach2D(player.velocity, wishX * PLAYER_MOVE_SPEED, wishZ * PLAYER_MOVE_SPEED, ACCEL * dt)
+  // Upgrades: Speed (22 = the base PLAYER_MOVE_SPEED).
+  player.moveSpeed = (PLAYER_MOVE_SPEED * useGameStore.getState().speed) / 22
+  approach2D(player.velocity, wishX * player.moveSpeed, wishZ * player.moveSpeed, ACCEL * dt)
 
   // Jump reads last frame's grounded flag, then we clear it for this frame.
   if (inputState.jump) {

@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useSyncExternalStore } fro
 import { useFrame, useThree } from '@react-three/fiber'
 import { AdditiveBlending, Box3, BoxGeometry, Color, DoubleSide, EdgesGeometry, Object3D, Plane, Raycaster, Vector3 } from 'three'
 import { COLORS, FOREST_SIGN, FLOOR_TOP, GATE, GROUND, INFO_BOARDS, MINE_CUBES, NORTH, NORTH_TREES, WALL, WORLD_BOUNDS, rectsAround } from '../../data/world.js'
-import { FUSE_MS, cubeCenter, getVersion, igniteTnt, isRemoved, litTnt, onBlast, placeTnt, placedTnt, previewCube, subscribe } from '../../systems/mineCubes.js'
+import { FUSE_MS, cubeCenter, getVersion, igniteTnt, isRemoved, litTnt, onBlast, placeTnt, placedTnt, previewCube, subscribe, tntKindAt } from '../../systems/mineCubes.js'
 import { playExplosion, playFuse } from '../../systems/sfx.js'
 import { touchState } from '../../systems/input.js'
 import { player } from '../../systems/playerState.js'
@@ -199,14 +199,14 @@ function TntPreview() {
     const onDown = (e) => {
       if (e.button !== 0 || !ref.current || !ref.current.visible) return
       const { col, row } = shown.current
-      const { slot, tnt } = useGameStore.getState()
-      if (slot !== 0 || tnt <= 0) return
-      if (placeTnt(col, row)) useGameStore.setState({ tnt: tnt - 1 })
+      const { slot, tnt, placeMax, tntEquipped } = useGameStore.getState()
+      if (slot !== 0 || tnt <= 0 || placedTnt().size >= placeMax) return // placeMax: Upgrades panel
+      if (placeTnt(col, row, tntEquipped)) useGameStore.setState({ tnt: tnt - 1 })
     }
     el.addEventListener('pointerdown', onDown)
     return () => el.removeEventListener('pointerdown', onDown)
   }, [gl])
-  useFrame(({ camera, pointer }) => {
+  useFrame(({ camera, pointer }, delta) => {
     const g = ref.current
     if (!g) return
     let c = null
@@ -218,20 +218,27 @@ function TntPreview() {
         _plane.constant = -MINE_CUBES.top
         aim = _ray.ray.intersectPlane(_plane, _hit) ? _hit : null
       }
-      c = previewCube(player.position.x, player.position.z, player.facing, aim)
+      c = previewCube(player.position.x, player.position.z, player.facing, aim, shown.current.col, shown.current.row)
     }
     if (!c) {
       if (g.visible) g.visible = false
       shown.current.col = -1
       return
     }
-    g.visible = true
     const p = cubeCenter(c.col, c.row)
-    if (c.col !== shown.current.col || c.row !== shown.current.row || p.y !== shown.current.y) {
-      shown.current.col = c.col
-      shown.current.row = c.row
-      shown.current.y = p.y
-      g.position.set(p.x, p.y + MINE_CUBES.size / 2, p.z)
+    shown.current.col = c.col
+    shown.current.row = c.row
+    shown.current.y = p.y
+    const ty = p.y + MINE_CUBES.size / 2
+    if (!g.visible) {
+      g.visible = true
+      g.position.set(p.x, ty, p.z)
+    } else {
+      // Glide to the target cube instead of snapping (frame-rate independent).
+      const k = 1 - Math.exp(-delta * 30)
+      g.position.x += (p.x - g.position.x) * k
+      g.position.y += (ty - g.position.y) * k
+      g.position.z += (p.z - g.position.z) * k
     }
   })
   return (
@@ -249,7 +256,7 @@ function TntPreview() {
 // A placed TNT block. Once lit it swells and flashes white, faster as the fuse
 // runs down (systems/mineCubes.js litTnt gives the blast time).
 const _flashGeo = new BoxGeometry(MINE_CUBES.size * 1.03, MINE_CUBES.size * 1.03, MINE_CUBES.size * 1.03)
-function Tnt({ index, x, y, z }) {
+function Tnt({ index, kind, x, y, z }) {
   const group = useRef()
   const flash = useRef()
   useFrame(() => {
@@ -265,7 +272,7 @@ function Tnt({ index, x, y, z }) {
   const isLit = litTnt().has(index)
   return (
     <group ref={group} position={[x, y, z]}>
-      <TntBlock size={MINE_CUBES.size} />
+      <TntBlock kind={kind} size={MINE_CUBES.size} />
       {isLit && (
         <mesh ref={flash} geometry={_flashGeo}>
           <meshBasicMaterial color="#ffffff" transparent opacity={0} depthWrite={false} toneMapped={false} />
@@ -285,12 +292,12 @@ function PlacedTnt() {
       const col = i % MINE_CUBES.cols
       const row = Math.floor(i / MINE_CUBES.cols)
       const c = cubeCenter(col, row)
-      out.push({ i, x: c.x, y: c.y + MINE_CUBES.size / 2, z: c.z })
+      out.push({ i, kind: tntKindAt(i), x: c.x, y: c.y + MINE_CUBES.size / 2, z: c.z })
     }
     return out
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [version])
-  return cells.map((c) => <Tnt key={c.i} index={c.i} x={c.x} y={c.y} z={c.z} />)
+  return cells.map((c) => <Tnt key={c.i} index={c.i} kind={c.kind} x={c.x} y={c.y} z={c.z} />)
 }
 
 // Holding the pickaxe (hotbar slot 1), left click on a placed TNT block that

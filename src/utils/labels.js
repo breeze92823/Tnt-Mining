@@ -1,5 +1,6 @@
 import { CanvasTexture, NearestFilter, SRGBColorSpace } from 'three'
 import { seededRandom } from './random.js'
+import { TNTS } from '../data/tnts.js'
 
 // Canvas-painted textures for the hub: Roblox-style billboard text, signs,
 // TNT and ore block faces, and the leaderboard panels. Built once per key.
@@ -288,10 +289,13 @@ export function oreTexture(kind) {
 }
 
 // TNT block: returns a 6-material face list [px, nx, py, ny, pz, nz] as textures.
+// Types from data/tnts.js without a hand-drawn face get the striped one in their colours.
 export function tntFaces(kind) {
+  const t = TNTS.find((x) => x.id === kind)
+  const striped = t && kind !== 'green'
   const side = make(`tnt:${kind}:side`, 256, 256, (ctx, w, h) => {
-    if (kind === 'green' || kind === 'red') {
-      const [a, b, c] = kind === 'green' ? ['#1f9a3a', '#2bc04a', '#156b28'] : ['#d4232a', '#ef3a3a', '#8e1218']
+    if (striped || kind === 'green' || kind === 'red') {
+      const [a, b, c] = striped ? [t.left, t.right, t.left] : kind === 'green' ? ['#1f9a3a', '#2bc04a', '#156b28'] : ['#d4232a', '#ef3a3a', '#8e1218']
       ctx.fillStyle = a
       ctx.fillRect(0, 0, w, h)
       for (let x = 0; x < w; x += 64) {
@@ -382,7 +386,7 @@ export function tntFaces(kind) {
     }
   })
   const top = make(`tnt:${kind}:top`, 128, 128, (ctx, w, h) => {
-    const base = { green: '#2bc04a', red: '#ef3a3a', corrupt: '#ffd400', admin: '#d81920', atomic: '#86f01f' }[kind]
+    const base = { green: '#2bc04a', red: '#ef3a3a', corrupt: '#ffd400', admin: '#d81920', atomic: '#86f01f' }[kind] || (t && t.top)
     ctx.fillStyle = base
     ctx.fillRect(0, 0, w, h)
     ctx.strokeStyle = 'rgba(0,0,0,0.4)'

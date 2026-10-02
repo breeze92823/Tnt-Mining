@@ -7,6 +7,7 @@ import { DEV_MODE } from '../data/bloxity.js'
 import { applyProportions, attachEquippedAccessories } from '../systems/avatarLoader.js'
 import { buildDefaultCharacter, loadBaseCharacter } from '../systems/defaultCharacter.js'
 import { useGameStore } from '../store/useGameStore.js'
+import { tntById } from '../data/tnts.js'
 import { createHeldItem } from '../systems/heldItem.js'
 import { makeGait, updateGait, disposeGait, setHolding } from '../systems/avatarAnim.js'
 
@@ -96,8 +97,10 @@ export default function Player() {
         setHolding(gaitRef.current, slot == null ? false : 'both')
       }
       apply(useGameStore.getState().slot)
+      held.tintTnt(tntById(useGameStore.getState().tntEquipped))
       off = useGameStore.subscribe((s, prev) => {
         if (s.slot !== prev.slot) apply(s.slot)
+        if (s.tntEquipped !== prev.tntEquipped) held.tintTnt(tntById(s.tntEquipped))
       })
     }
 
