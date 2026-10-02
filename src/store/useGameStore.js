@@ -14,7 +14,7 @@ const START_CLICK_POWER = 4
 // (the player) lives in systems/playerState.js instead.
 export const useGameStore = create(() => ({
   avatarLoaded: false, // player character (incl. Bloxity accessories) finished loading; gates the loading screen
-  money: Number(import.meta.env.VITE_START_CASH) || 320, // VITE_START_CASH in .env overrides the starting cash
+  money: Number(import.meta.env.VITE_START_CASH) || 0, // VITE_START_CASH in .env overrides the starting cash
   damage: START_DAMAGE, // damage stat (Panels "More Damage"; rebirth multiplies it)
   shells: 0,
   rebirths: 1, // starts at Rebirth 1
