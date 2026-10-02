@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { TNTS, tntById } from '../../data/tnts.js'
 import { ORES } from '../../data/ores.js'
 import { compact } from '../../utils/compact.js'
-import { damageMult, moneyMult, doRebirth, playerLevel, rebirthLevelFor, sellBlocks, buyTnt, buyUpgrade, closePanel, equipTnt, selectSlot, useGameStore } from '../../store/useGameStore.js'
+import { damageMult, moneyMult, doRebirth, playerLevel, rebirthLevelFor, sellBlocks, buyDamage, buyTnt, buyUpgrade, closePanel, equipTnt, selectSlot, useGameStore } from '../../store/useGameStore.js'
 import { resetPlayer } from '../../systems/playerState.js'
 import { syncYawToPlayer } from '../../systems/cameraOrbit.js'
 import { setSetting, settings } from '../../systems/settingsState.js'
@@ -15,12 +15,12 @@ import {
 // Modal windows opened from the HUD buttons. One open at a time
 // (useGameStore.panel); click the backdrop or ✕ to close.
 
-// Damage packs; the first is the featured "best value" one.
+// Damage packs (cash price, blastPower gained); the first is the featured "best value" one.
 const DAMAGE_PACKS = [
-  { amount: '500K', price: 449 },
-  { amount: '5K', price: 11 },
-  { amount: '25K', price: 59 },
-  { amount: '125K', price: 169 },
+  { amount: '500K', power: 500e3, price: 250e6 },
+  { amount: '5K', power: 5e3, price: 10e6 },
+  { amount: '25K', power: 25e3, price: 25e6 },
+  { amount: '125K', power: 125e3, price: 125e6 },
 ]
 
 const DESTINATIONS = [
@@ -49,7 +49,7 @@ function Shop() {
         <div className="shop-best-text">
           <b>{best.amount} Damage</b>
           <span className="shop-tag">Best Value!</span>
-          <ShopPrice price={best.price} />
+          <ShopPrice pack={best} />
         </div>
         <BurstIcon className="shop-best-icon" />
       </div>
@@ -58,7 +58,7 @@ function Shop() {
           <div key={p.amount} className="shop-card shop-pack">
             <b>{p.amount}</b>
             <BurstIcon className="shop-pack-icon" />
-            <ShopPrice price={p.price} />
+            <ShopPrice pack={p} />
           </div>
         ))}
       </div>
@@ -66,12 +66,15 @@ function Shop() {
   )
 }
 
-const ShopPrice = ({ price }) => (
-  <button type="button" className="shop-price">
-    <GemIcon className="shop-price-icon" />
-    {price}
-  </button>
-)
+const ShopPrice = ({ pack }) => {
+  const afford = useGameStore((st) => st.money >= pack.price)
+  return (
+    <button type="button" className={`shop-price${afford ? '' : ' is-muted'}`} disabled={!afford} onClick={() => buyDamage(pack.power, pack.price)}>
+      <CashIcon className="shop-price-icon" />
+      {short(pack.price)}
+    </button>
+  )
+}
 
 // The player's inventory: the HUD hotbar shows these in order (slot = index).
 export const INVENTORY = [

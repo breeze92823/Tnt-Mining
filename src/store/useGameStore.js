@@ -85,6 +85,12 @@ export function buyUpgrade(key, price) {
   useGameStore.setState((s) => ({ money: s.money - price, [key]: s[key] + 1, ...(key === 'carryMax' && { tnt: s.tnt + 1 }) }))
   return true
 }
+// Buys a damage pack: `power` blastPower (added to clickPower) for `price` cash; false if too poor.
+export function buyDamage(power, price) {
+  if (useGameStore.getState().money < price) return false
+  useGameStore.setState((s) => ({ money: s.money - price, clickPower: s.clickPower + power }))
+  return true
+}
 // Equipping restocks the carried TNT of that type.
 export const equipTnt = (id) => useGameStore.setState((s) => (s.tntOwned.includes(id) ? { tntEquipped: id, tnt: Math.max(s.tnt, s.carryMax) } : s))
 // Buys a TNT type with money or gems (`gem`); false if too poor.
