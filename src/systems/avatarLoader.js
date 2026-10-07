@@ -21,7 +21,7 @@ import {
 } from 'three'
 import { MATERIAL_PBR } from '../data/materials.js'
 import { PROPORTIONS, RIG, RIG_HEIGHT, clamp } from '../data/bloxity.js'
-import { AVATAR_SLOTS, isEquipped, itemUrls, partUrl, skinUrl } from '../data/avatarCdn.js'
+import { AVATAR_SLOTS, assetUrl, describeItem, isEquipped, itemUrls, partUrl, skinUrl } from '../data/avatarCdn.js'
 import { player } from './playerState.js'
 
 const gltfLoader = new GLTFLoader()
@@ -77,11 +77,25 @@ function configureItemTexture(texture) {
   return texture
 }
 
+// Hats sit too low on the head bone without this (matches the portal).
+const HAT_LIFT = 0.8
+
+// An equipped hat can force a particular head; override headId when so.
+async function withForcedHead(equipped) {
+  const hat = await describeItem(equipped.hatId)
+  const forced = hat?.forceHeadId
+  // '-1' is meaningful here: it forces the stock head.
+  return forced === undefined || forced === null ? equipped : { ...equipped, headId: forced }
+}
+
 async function applySkin(root, id) {
-  if (!isEquipped(id)) return
+  // No skin equipped: the portal shows the default skin, not the rig's own.
+  const equipped = isEquipped(id)
+  const entry = equipped ? await describeItem(id) : null
+  const url = assetUrl(entry?.assetPaths?.texture) || skinUrl(equipped ? id : 0)
   let texture
   try {
-    texture = configureSkinTexture(await textureLoader.loadAsync(skinUrl(id)))
+    texture = configureSkinTexture(await textureLoader.loadAsync(url))
   } catch {
     return // keep the rig's embedded texture
   }
@@ -100,9 +114,11 @@ async function applySkin(root, id) {
 // The part's skinIndex values are remapped bone-name-by-bone-name into the
 // base skeleton's order first, since its own export order usually differs.
 async function applyPart(root, slot, id) {
+  const paths = (await describeItem(id))?.assetPaths
+  const url = assetUrl(paths?.[slot.side ? `mesh${slot.side}` : 'mesh']) || partUrl(slot, id)
   let gltf
   try {
-    gltf = await gltfLoader.loadAsync(partUrl(slot, id))
+    gltf = await gltfLoader.loadAsync(url)
   } catch {
     return // slot unavailable: the default_* mesh stays visible
   }
@@ -147,7 +163,12 @@ async function applyPart(root, slot, id) {
 async function applyItem(root, slot, id) {
   const anchor = root.nodes[slot.attach]
   if (!anchor) return
-  const urls = itemUrls(slot, id)
+  const paths = (await describeItem(id))?.assetPaths
+  const fallback = itemUrls(slot, id)
+  const urls = {
+    mesh: assetUrl(paths?.mesh) || fallback.mesh,
+    texture: assetUrl(paths?.texture) || fallback.texture,
+  }
   let object
   try {
     object = await objLoader.loadAsync(urls.mesh)
@@ -168,6 +189,7 @@ async function applyItem(root, slot, id) {
       texture ? { map: texture, ...MATERIAL_PBR.PLAYER } : { color: '#cccccc', ...MATERIAL_PBR.PLAYER },
     )
   })
+  if (slot.key === 'hatId') object.position.set(0, HAT_LIFT, 0)
   anchor.add(object)
 }
 
@@ -177,6 +199,8 @@ async function applyItem(root, slot, id) {
 export async function attachEquippedAccessories(root, equipped, { signal } = {}) {
   if (!root || !equipped) return
   try {
+    equipped = await withForcedHead(equipped)
+    if (signal?.aborted) return
     ownMaterials(root)
     await applySkin(root, equipped.skinId)
     if (signal?.aborted) return

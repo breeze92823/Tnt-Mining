@@ -43,6 +43,33 @@ export function skinUrl(id) {
   return `${AVATAR_CDN}/skins/${id}.png`
 }
 
+const STATIC_HOST = 'https://static.bloxity.io'
+const CATALOGUE_URL = 'https://api.bloxity.io/v1/avatar/items'
+
+// Catalogue assetPaths are absolute or host-relative; make them fetchable.
+export function assetUrl(path) {
+  if (typeof path !== 'string' || !path) return null
+  if (/^(https?:)?\/\//i.test(path)) return path
+  return `${STATIC_HOST}${path.startsWith('/') ? '' : '/'}${path}`
+}
+
+// Catalogue entry for an item id ({ assetPaths, forceHeadId, ... }), cached
+// per id. Null for unequipped ids and for any failed lookup.
+const catalogue = new Map()
+
+export function describeItem(id) {
+  if (!isEquipped(id)) return Promise.resolve(null)
+  const key = String(id)
+  let request = catalogue.get(key)
+  if (!request) {
+    request = fetch(`${CATALOGUE_URL}/${encodeURIComponent(key)}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .catch(() => null)
+    catalogue.set(key, request)
+  }
+  return request
+}
+
 export function hatObjUrl(id) {
   return isEquipped(id) ? `${AVATAR_CDN}/items/hats/${id}.obj` : null
 }
